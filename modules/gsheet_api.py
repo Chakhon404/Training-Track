@@ -26,6 +26,7 @@ def get_gspread_client():
     ]
     
     try:
+        # st.secrets returns an AttrDict which works directly with from_service_account_info
         credentials = Credentials.from_service_account_info(
             st.secrets["gcp_service_account"],
             scopes=scopes
@@ -40,20 +41,23 @@ def get_worksheet(worksheet_key):
     Gets a specific worksheet from the Google Sheet based on the config key.
     """
     client = get_gspread_client()
-    if not client: return None
+    if not client:
+        return None
     
     try:
         sheet = client.open(SHEET_CONFIG["sheet_name"])
-        return sheet.worksheet(SHEET_CONFIG["worksheets"][worksheet_key])
+        # Normalize key here as well just in case
+        normalized_key = worksheet_key.strip().lower()
+        return sheet.worksheet(SHEET_CONFIG["worksheets"][normalized_key])
     except Exception as e:
         st.error(f"Error accessing worksheet '{worksheet_key}': {e}")
         return None
 
 def batch_append(worksheet_key, data_list):
-    \"\"\"
+    """
     Appends multiple rows to the specified worksheet efficiently.
     Includes UI feedback to prevent double submissions.
-    \"\"\"
+    """
     # Normalize key to handle case sensitivity and whitespace
     worksheet_key = worksheet_key.strip().lower()
 
@@ -61,9 +65,8 @@ def batch_append(worksheet_key, data_list):
         st.warning("No data to append.")
         return False
 
-
     with st.status("Saving to Cloud...", expanded=True) as status:
-        st.write(f"Connecting to {SHEET_CONFIG['worksheets'][worksheet_key]} worksheet...")
+        st.write(f"Connecting to {SHEET_CONFIG['worksheets'].get(worksheet_key, worksheet_key)} worksheet...")
         worksheet = get_worksheet(worksheet_key)
         
         if worksheet is None:
@@ -83,6 +86,8 @@ def batch_append(worksheet_key, data_list):
             
 def fetch_all_records(worksheet_key):
     """Fetches all records for analytics."""
+    # Normalize key
+    worksheet_key = worksheet_key.strip().lower()
     worksheet = get_worksheet(worksheet_key)
     if worksheet is None:
         return []
