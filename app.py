@@ -4,32 +4,68 @@ from modules.analytics import render_analytics
 
 # --- PAGE CONFIG ---
 st.set_page_config(
-    page_title="The Tank Log",
-    page_icon="🏋️",
+    page_title="Dashboard",
+    page_icon="📊",
     layout="wide"
 )
 
-# --- SESSION STATE INITIALIZATION ---
-if "workout_session" not in st.session_state:
-    st.session_state.workout_session = False
-if "custom_exercises" not in st.session_state:
-    st.session_state.custom_exercises = [""]
+# --- AUTHENTICATION ---
+def check_password():
+    \"\"\"Returns `True` if the user had the correct password.\"\"\"
 
-# --- APP HEADER ---
-st.title("🛡️ The Tank Log v1.0")
-st.markdown("Automated Training & Biohacking Log System")
+    def password_entered():
+        \"\"\"Checks whether a password entered by the user is correct.\"\"\"
+        if st.session_state["password"] == st.secrets["app_password"]:
+            st.session_state["password_correct"] = True
+            del st.session_state["password"]  # don't store password
+        else:
+            st.session_state["password_correct"] = False
 
-# --- NAVIGATION ROUTER ---
-tabs = st.tabs(["🏋️ Workout", "🏃 Engine", "💊 Biohack", "🧠 AI Data"])
+    if "password_correct" not in st.session_state:
+        # First run, show input for password.
+        st.text_input(
+            "Access Key", type="password", on_change=password_entered, key="password"
+        )
+        return False
+    elif not st.session_state["password_correct"]:
+        # Password not correct, show input + error.
+        st.text_input(
+            "Access Key", type="password", on_change=password_entered, key="password"
+        )
+        st.error("😕 Access Denied.")
+        return False
+    else:
+        # Password correct.
+        return True
 
-with tabs[0]:
-    render_workout_form()
+# --- MAIN APP ---
+def main():
+    if check_password():
+        # --- SESSION STATE INITIALIZATION ---
+        if "workout_session" not in st.session_state:
+            st.session_state.workout_session = False
+        if "custom_exercises" not in st.session_state:
+            st.session_state.custom_exercises = [""]
 
-with tabs[1]:
-    render_running_form()
+        # --- APP HEADER ---
+        st.title("📊 Personal Activity Dashboard")
+        st.markdown("Automated Routine & Health Management System")
 
-with tabs[2]:
-    render_biohack_form()
+        # --- NAVIGATION ROUTER ---
+        # Renamed tabs for discretion
+        tabs = st.tabs(["📝 Training Logs", "🏃 Movement Logs", "💊 Health & Routine", "📈 Insights & Trends"])
 
-with tabs[3]:
-    render_analytics()
+        with tabs[0]:
+            render_workout_form()
+
+        with tabs[1]:
+            render_running_form()
+
+        with tabs[2]:
+            render_biohack_form()
+
+        with tabs[3]:
+            render_analytics()
+
+if __name__ == "__main__":
+    main()
