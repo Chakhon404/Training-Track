@@ -1,14 +1,15 @@
 import streamlit as st
 import pandas as pd
 from datetime import datetime
-from modules.gsheet_api import batch_append, fetch_all_records, update_worksheet
+from modules.database import get_db
 
 def get_timestamp(log_date, log_time):
-    return f"{log_date} {log_time.strftime('%H:%M')}"
+    return f"{log_date} {log_time.strftime('%H:%M:%S')}"
 
 def render_plan_builder():
+    db = get_db()
     st.header("🛠️ Training Plan Builder")
-    st.info("Define recurring training templates. Plans are stored in the 'Training_Plans' tab.")
+    st.info("Define recurring training templates. Plans are stored in Supabase.")
     
     # 1. New Plan Form
     with st.expander("➕ Create New Plan", expanded=True):
@@ -27,13 +28,9 @@ def render_plan_builder():
                 if not plan_name.strip():
                     st.error("Please provide a plan name.")
                 else:
-                    new_rows = []
-                    for ex in ex_data:
-                        if ex["name"].strip():
-                            new_rows.append([plan_name.strip(), ex["name"].strip(), ex["type"]])
-                    
-                    if new_rows:
-                        if batch_append("training_plans", new_rows):
+                    exercises = [{"name": ex["name"].strip(), "type": ex["type"]} for ex in ex_data if ex["name"].strip()]
+                    if exercises:
+                        if db.add_plan({"name": plan_name.strip(), "exercises": exercises}):
                             st.success(f"Plan '{plan_name}' saved!")
                             st.rerun()
                     else:
@@ -41,48 +38,34 @@ def render_plan_builder():
 
     # 2. Existing Plans Management
     st.subheader("📋 Active Plans")
-    raw_plans = fetch_all_records("training_plans")
-    if raw_plans:
-        df_p = pd.DataFrame(raw_plans)
-        if 'Plan Name' in df_p.columns:
-            unique_plans = df_p['Plan Name'].unique()
-            for p_name in unique_plans:
-                with st.container(border=True):
-                    c1, c2 = st.columns([4, 1])
-                    c1.markdown(f"### {p_name}")
-                    if c2.button("🗑️ Delete", key=f"del_{p_name}"):
-                        remaining = df_p[df_p['Plan Name'] != p_name]
-                        # Re-attach headers and overwrite
-                        matrix = [df_p.columns.tolist()] + remaining.values.tolist()
-                        if update_worksheet("training_plans", matrix):
-                            st.rerun()
-                    
-                    # Show preview of exercises
-                    p_exercises = df_p[df_p['Plan Name'] == p_name]
-                    ex_list = ", ".join([f"{r['Exercise']} ({r['Type']})" for _, r in p_exercises.iterrows()])
-                    st.caption(ex_list)
+    plans = db.fetch_plans()
+    if plans:
+        for p in plans:
+            with st.container(border=True):
+                c1, c2 = st.columns([4, 1])
+                c1.markdown(f"### {p['name']}")
+                if c2.button("🗑️ Delete", key=f"del_{p['id']}"):
+                    if db.delete_plan(p['id']):
+                        st.rerun()
+                
+                # Show preview of exercises
+                ex_list = ", ".join([f"{ex['name']} ({ex['type']})" for ex in p['exercises']])
+                st.caption(ex_list)
     else:
         st.info("No plans found. Build your first one above!")
 
 def render_workout_form():
+    db = get_db()
     st.subheader("🏋️ Training Logger")
     
-    # Fetch plans from DB
-    raw_plans = fetch_all_records("training_plans")
-    if not raw_plans:
+    plans = db.fetch_plans()
+    if not plans:
         st.warning("No plans found. Use the 'Plan Builder' in the System sidebar to get started.")
         return
         
-    df_p = pd.DataFrame(raw_plans)
-    if 'Plan Name' not in df_p.columns:
-        st.error("Training Plans tab structure is invalid.")
-        return
-        
-    plan_names = df_p['Plan Name'].unique().tolist()
-    selected_plan = st.selectbox("Select Training Plan", plan_names)
-    
-    # Filter exercises
-    plan_ex = df_p[df_p['Plan Name'] == selected_plan]
+    plan_names = [p['name'] for p in plans]
+    selected_plan_name = st.selectbox("Select Training Plan", plan_names)
+    selected_plan = next(p for p in plans if p['name'] == selected_plan_name)
     
     col_d, col_t = st.columns(2)
     with col_d:
@@ -92,11 +75,11 @@ def render_workout_form():
     
     log_ts = get_timestamp(l_date, l_time)
 
-    with st.form(key=f"workout_form_{selected_plan}"):
+    with st.form(key=f"workout_form_{selected_plan['id']}"):
         session_results = []
-        for i, row in plan_ex.iterrows():
-            ex_n = row['Exercise']
-            ex_t = row['Type']
+        for i, ex in enumerate(selected_plan['exercises']):
+            ex_n = ex['name']
+            ex_t = ex['type']
             
             st.markdown(f"#### {ex_n} ({ex_t})")
             
@@ -120,13 +103,22 @@ def render_workout_form():
             for item in session_results:
                 if item["s"] > 0:
                     volume = item["w"] * item["s"] * item["r"] if item["type"] == "Heavy" else 0
-                    # [Date, Plan, Exercise, Weight, Sets, Reps, RPE, Volume]
-                    final_rows.append([log_ts, selected_plan, item["name"], item["w"], item["s"], item["r"], item["rpe"], volume])
+                    final_rows.append({
+                        "log_ts": log_ts,
+                        "plan_name": selected_plan_name,
+                        "exercise": item["name"],
+                        "weight": item["w"],
+                        "sets": item["s"],
+                        "reps": item["r"],
+                        "rpe": item["rpe"],
+                        "volume": volume
+                    })
             
-            if final_rows and batch_append("workouts", final_rows):
+            if final_rows and db.save_workout(final_rows):
                 st.success(f"Session saved: {len(final_rows)} exercises logged.")
 
 def render_running_form():
+    db = get_db()
     st.subheader("🏃 Movement Tracker")
     
     col_d, col_t = st.columns(2)
@@ -138,12 +130,11 @@ def render_running_form():
     log_ts = get_timestamp(l_date, l_time)
 
     with st.form(key="run_form_v2"):
-        # New Category Selection
         cat = st.selectbox("Activity Category", ["Easy", "Tempo", "Interval", "Long", "Walk"])
         
         c1, c2 = st.columns(2)
         dist = c1.number_input("Distance (km)", min_value=0.0, step=0.1)
-        dur = c2.text_input("Duration (MM:SS)", value="00:00")
+        dur = st.text_input("Duration (MM:SS)", value="00:00")
         
         c3, c4 = st.columns(2)
         hr = c3.number_input("Avg Heart Rate", min_value=0, step=1)
@@ -160,13 +151,22 @@ def render_running_form():
                     p_s = tot_s / dist
                     pace_s = f"{int(p_s // 60)}:{int(p_s % 60):02d}"
                 
-                # Appending [Date, Dist, Dur, Pace, HR, HRR, Category]
-                if batch_append("running", [[log_ts, dist, dur, pace_s, hr, hrr, cat]]):
+                run_data = {
+                    "log_ts": log_ts,
+                    "distance": dist,
+                    "duration": dur,
+                    "pace": pace_s,
+                    "hr": hr,
+                    "hrr": hrr,
+                    "category": cat
+                }
+                if db.save_run(run_data):
                     st.success("Movement session logged.")
             except:
                 st.error("Use MM:SS format for duration.")
 
 def render_biohack_form():
+    db = get_db()
     st.subheader("🍱 Nutrition Log")
     
     col_d, col_t = st.columns(2)
@@ -194,8 +194,16 @@ def render_biohack_form():
         f_g = n4.number_input("Fat (g)", min_value=0, step=1)
 
         if st.form_submit_button("✅ Save Nutrition"):
-            # The Great Purge: PPPD, Shoulder, Weight padded with 0/0.0
-            # Sheet mapping: [Date, Creatine, Prot_P, MultiV, Omega3, PPPD, Shoulder, Calories, Prot_g, Carb_g, Fat_g, Weight_kg]
-            row = [[log_ts, int(crea), int(prot), int(vit), int(omg), 0, 0, cal, p_g, c_g, f_g, 0.0]]
-            if batch_append("biohack", row):
+            nut_data = {
+                "log_ts": log_ts,
+                "calories": cal,
+                "protein_g": p_g,
+                "carbs_g": c_g,
+                "fat_g": f_g,
+                "creatine": crea,
+                "protein_powder": prot,
+                "multivitamin": vit,
+                "omega3": omg
+            }
+            if db.save_nutrition(nut_data):
                 st.success("Nutrition data saved.")

@@ -62,7 +62,7 @@ class TrainingDB:
     def save_run(self, run_data):
         if not self.is_connected(): return False
         try:
-            self.supabase.table("runs").insert(run_data).execute()
+            self.supabase.table("running").insert(run_data).execute()
             return True
         except Exception as e:
             st.error(f"Failed to save run: {e}")
@@ -103,3 +103,7 @@ class TrainingDB:
         except Exception as e:
             st.error(f"Failed to fetch weight: {e}")
             return []
+
+@st.cache_resource
+def get_db():
+    return TrainingDB()
