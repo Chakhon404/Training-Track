@@ -3,49 +3,103 @@ from supabase import create_client, Client
 
 class TrainingDB:
     def __init__(self):
-        url: str = st.secrets["SUPABASE_URL"]
-        key: str = st.secrets["SUPABASE_KEY"]
-        self.supabase: Client = create_client(url, key)
+        try:
+            url: str = st.secrets["SUPABASE_URL"]
+            key: str = st.secrets["SUPABASE_KEY"]
+            self.supabase: Client = create_client(url, key)
+        except Exception as e:
+            st.error(f"Failed to initialize Supabase client: {e}")
+            self.supabase = None
 
     def is_connected(self):
         return self.supabase is not None
 
     def fetch_plans(self):
-        response = self.supabase.table("training_plans").select("*").execute()
-        return response.data
+        if not self.is_connected(): return []
+        try:
+            response = self.supabase.table("training_plans").select("*").execute()
+            return response.data
+        except Exception as e:
+            st.error(f"Failed to fetch plans: {e}")
+            return []
 
     def add_plan(self, plan_data):
-        response = self.supabase.table("training_plans").insert(plan_data).execute()
-        return response.data
+        if not self.is_connected(): return None
+        try:
+            response = self.supabase.table("training_plans").insert(plan_data).execute()
+            return response.data
+        except Exception as e:
+            st.error(f"Failed to add plan: {e}")
+            return None
 
     def delete_plan(self, plan_id):
-        response = self.supabase.table("training_plans").delete().eq("id", plan_id).execute()
-        return response.data
+        if not self.is_connected(): return None
+        try:
+            response = self.supabase.table("training_plans").delete().eq("id", plan_id).execute()
+            return response.data
+        except Exception as e:
+            st.error(f"Failed to delete plan: {e}")
+            return None
 
     def save_workout(self, workout_data):
-        response = self.supabase.table("workouts").insert(workout_data).execute()
-        return response.data
+        if not self.is_connected(): return False
+        try:
+            self.supabase.table("workouts").insert(workout_data).execute()
+            return True
+        except Exception as e:
+            st.error(f"Failed to save workout: {e}")
+            return False
 
     def fetch_workouts(self):
-        response = self.supabase.table("workouts").select("*").execute()
-        return response.data
+        if not self.is_connected(): return []
+        try:
+            response = self.supabase.table("workouts").select("*").execute()
+            return response.data
+        except Exception as e:
+            st.error(f"Failed to fetch workouts: {e}")
+            return []
 
     def save_run(self, run_data):
-        response = self.supabase.table("runs").insert(run_data).execute()
-        return response.data
+        if not self.is_connected(): return False
+        try:
+            self.supabase.table("runs").insert(run_data).execute()
+            return True
+        except Exception as e:
+            st.error(f"Failed to save run: {e}")
+            return False
 
     def save_nutrition(self, nutrition_data):
-        response = self.supabase.table("nutrition").insert(nutrition_data).execute()
-        return response.data
+        if not self.is_connected(): return False
+        try:
+            self.supabase.table("nutrition").insert(nutrition_data).execute()
+            return True
+        except Exception as e:
+            st.error(f"Failed to save nutrition: {e}")
+            return False
 
     def fetch_nutrition(self):
-        response = self.supabase.table("nutrition").select("*").execute()
-        return response.data
+        if not self.is_connected(): return []
+        try:
+            response = self.supabase.table("nutrition").select("*").execute()
+            return response.data
+        except Exception as e:
+            st.error(f"Failed to fetch nutrition: {e}")
+            return []
 
     def save_weight(self, weight_data):
-        response = self.supabase.table("weight").insert(weight_data).execute()
-        return response.data
+        if not self.is_connected(): return False
+        try:
+            self.supabase.table("weight").insert(weight_data).execute()
+            return True
+        except Exception as e:
+            st.error(f"Failed to save weight: {e}")
+            return False
 
     def fetch_weight(self):
-        response = self.supabase.table("weight").select("*").execute()
-        return response.data
+        if not self.is_connected(): return []
+        try:
+            response = self.supabase.table("weight").select("*").execute()
+            return response.data
+        except Exception as e:
+            st.error(f"Failed to fetch weight: {e}")
+            return []
