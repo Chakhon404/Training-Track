@@ -1,7 +1,7 @@
 import streamlit as st
 from modules.forms import render_workout_form, render_running_form, render_biohack_form, render_plan_builder
 from modules.analytics import render_analytics, render_overview, render_nutrition_analysis
-from modules.gsheet_api import get_gspread_client
+from modules.database import get_db
 
 # --- PAGE CONFIG ---
 st.set_page_config(
@@ -34,12 +34,12 @@ def main():
     if not check_password():
         st.stop()
 
-    client = get_gspread_client()
+    db = get_db()
 
     # --- SIDEBAR STATUS ---
     with st.sidebar:
         st.title("⚙️ System Management")
-        if client:
+        if db.is_connected():
             st.success("Database Online")
         else:
             st.error("Database Offline")
@@ -49,7 +49,7 @@ def main():
             st.rerun()
             
         st.divider()
-        if client:
+        if db.is_connected():
             show_plan_builder = st.toggle("🛠️ Open Plan Builder", value=False)
         else:
             show_plan_builder = False
@@ -69,7 +69,7 @@ def main():
         render_overview()
 
     with tabs[1]:
-        if client:
+        if db.is_connected():
             render_workout_form()
         else:
             st.warning("Database offline. Cannot load training plans.")

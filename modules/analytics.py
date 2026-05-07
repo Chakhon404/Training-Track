@@ -2,7 +2,7 @@ import streamlit as st
 import pandas as pd
 import numpy as np
 from datetime import datetime, timedelta
-from modules.gsheet_api import fetch_all_records, batch_append
+from modules.database import get_db
 
 # --- UTILITIES ---
 
@@ -43,7 +43,7 @@ def render_chart_safely(df, x, y, title=None, chart_type='line'):
 
 def predict_target_date(df_weights, target=64.0):
     """Predicts target date using linear regression. Minimum 2 valid points."""
-    if df_weights.empty: return "No data found"
+    if df_weights.empty: return "Collecting data for predictions..."
     
     df = df_weights.copy()
     df['Date'] = pd.to_datetime(df['Date'], errors='coerce')
@@ -51,7 +51,7 @@ def predict_target_date(df_weights, target=64.0):
     df = df.dropna(subset=['Date', 'Weight']).sort_values('Date')
 
     if len(df) < 2:
-        return "Need more data points (min 2)"
+        return "Collecting data for predictions..."
 
     try:
         first_date = df['Date'].min()
@@ -77,10 +77,15 @@ def predict_target_date(df_weights, target=64.0):
 
 def render_analytics():
     st.title("📉 Analytics")
+    db = get_db()
     c1, c2 = st.columns(2)
     
-    with st.spinner("Syncing..."):
-        df_weight = safe_numeric(pd.DataFrame(fetch_all_records("weight")), ['Weight'])
+    with st.spinner("Fetching data..."):
+        weight_data = db.fetch_weight()
+        df_weight = pd.DataFrame(weight_data)
+        if not df_weight.empty:
+            df_weight = df_weight.rename(columns={'log_ts': 'Date', 'weight': 'Weight'})
+            df_weight = safe_numeric(df_weight, ['Weight'])
 
     with c1:
         st.subheader("Weight Prediction")
@@ -88,8 +93,14 @@ def render_analytics():
             today_w = st.number_input("Current Weight", min_value=30.0, step=0.1)
             target_w = st.number_input("Target Weight", value=64.0, step=0.1)
             w_date = st.date_input("Date", datetime.now().date())
+            notes = st.text_input("Notes")
             if st.form_submit_button("Log & Predict"):
-                if batch_append("weight", [[str(w_date), today_w, "Manual Entry"]]):
+                if db.save_weight({
+                    "log_ts": datetime.combine(w_date, datetime.now().time()).isoformat(),
+                    "weight": today_w,
+                    "notes": notes
+                }):
+                    st.success("Weight logged!")
                     st.rerun()
         
         pred = predict_target_date(df_weight, target_w)
@@ -101,19 +112,30 @@ def render_analytics():
 
 def render_nutrition_analysis():
     st.subheader("🥦 Nutrition & Energy")
+    db = get_db()
     GOALS = {"Calories": 2500, "Protein": 160, "Carbs": 300, "Fat": 70}
     
-    bio_data = fetch_all_records("biohack")
-    if not bio_data:
+    nutrition_data = db.fetch_nutrition()
+    if not nutrition_data:
         st.info("No logs found.")
         return
         
-    df_bio = safe_numeric(pd.DataFrame(bio_data), ['Calories (kcal)', 'Protein (g)', 'Carbs (g)', 'Fat (g)'])
-    if df_bio.empty:
+    df_nut = pd.DataFrame(nutrition_data)
+    if df_nut.empty:
         st.info("No logs found.")
         return
-        
-    latest = df_bio.iloc[-1]
+
+    # Map columns
+    df_nut = df_nut.rename(columns={
+        'log_ts': 'Date',
+        'calories': 'Calories (kcal)',
+        'protein_g': 'Protein (g)',
+        'carbs_g': 'Carbs (g)',
+        'fat_g': 'Fat (g)'
+    })
+    
+    df_nut = safe_numeric(df_nut, ['Calories (kcal)', 'Protein (g)', 'Carbs (g)', 'Fat (g)'])
+    latest = df_nut.iloc[-1]
     
     c1, c2, c3, c4 = st.columns(4)
     for col, (label, goal) in zip([c1, c2, c3, c4], GOALS.items()):
@@ -122,6 +144,21 @@ def render_nutrition_analysis():
         diff = val - goal
         color = "inverse" if label == "Calories" and diff > 0 else "normal"
         col.metric(label, f"{val:.0f}/{goal}", delta=f"{diff:.0f}", delta_color=color)
+
+    st.divider()
+    
+    # Supplement Status
+    st.markdown("### Supplements")
+    s1, s2, s3, s4 = st.columns(4)
+    supps = [
+        ("Creatine", "creatine"),
+        ("Protein Powder", "protein_powder"),
+        ("Multivitamin", "multivitamin"),
+        ("Omega-3", "omega3")
+    ]
+    for col, (label, key) in zip([s1, s2, s3, s4], supps):
+        status = "✅" if latest.get(key) else "❌"
+        col.markdown(f"**{label}**: {status}")
 
     st.divider()
     st.markdown("### Daily Progress (%)")
@@ -136,11 +173,26 @@ def render_nutrition_analysis():
 
 def render_overview():
     st.title("🏠 Dashboard Overview")
+    db = get_db()
     
     with st.spinner("Loading metrics..."):
-        df_w = safe_numeric(pd.DataFrame(fetch_all_records("weight")), ['Weight'])
-        df_b = safe_numeric(pd.DataFrame(fetch_all_records("biohack")), ['Calories (kcal)', 'Protein (g)', 'Carbs (g)', 'Fat (g)'])
-        df_wrk = safe_numeric(pd.DataFrame(fetch_all_records("workouts")), ['Volume'])
+        weight_data = db.fetch_weight()
+        df_w = pd.DataFrame(weight_data).rename(columns={'log_ts': 'Date', 'weight': 'Weight'})
+        df_w = safe_numeric(df_w, ['Weight'])
+
+        nut_data = db.fetch_nutrition()
+        df_b = pd.DataFrame(nut_data).rename(columns={
+            'log_ts': 'Date',
+            'calories': 'Calories (kcal)',
+            'protein_g': 'Protein (g)',
+            'carbs_g': 'Carbs (g)',
+            'fat_g': 'Fat (g)'
+        })
+        df_b = safe_numeric(df_b, ['Calories (kcal)', 'Protein (g)', 'Carbs (g)', 'Fat (g)'])
+
+        workout_data = db.fetch_workouts()
+        df_wrk = pd.DataFrame(workout_data).rename(columns={'log_ts': 'Date', 'volume': 'Volume'})
+        df_wrk = safe_numeric(df_wrk, ['Volume'])
 
     k1, k2 = st.columns(2)
     k1.metric("Latest Weight", f"{df_w['Weight'].iloc[-1]:.1f} kg" if not df_w.empty and 'Weight' in df_w.columns else "N/A")
