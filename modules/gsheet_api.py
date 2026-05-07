@@ -3,9 +3,9 @@ import gspread
 from google.oauth2.service_account import Credentials
 import time
 
-# Config dictionary to avoid hardcoding errors
+# Config dictionary using unique Sheet ID for 100% reliability
 SHEET_CONFIG = {
-    "sheet_name": "The Tank Log DB", # Change this to your actual Google Sheet name
+    "sheet_id": "1EEbWz3-C4qOljdUfLy92DNacmEP8MAY2cEKD5XvOmjU",
     "worksheets": {
         "workouts": "Workouts",
         "running": "Running",
@@ -26,7 +26,6 @@ def get_gspread_client():
     ]
     
     try:
-        # st.secrets returns an AttrDict which works directly with from_service_account_info
         credentials = Credentials.from_service_account_info(
             st.secrets["gcp_service_account"],
             scopes=scopes
@@ -38,56 +37,60 @@ def get_gspread_client():
 
 def get_worksheet(worksheet_key):
     """
-    Gets a specific worksheet from the Google Sheet based on the config key.
+    Gets a specific worksheet from the Google Sheet based on the config key and Sheet ID.
     """
     client = get_gspread_client()
     if not client:
         return None
     
+    # Normalize input
+    key = worksheet_key.strip().lower()
+    
+    if key not in SHEET_CONFIG["worksheets"]:
+        st.error(f"Worksheet key '{key}' not found in configuration.")
+        return None
+    
     try:
-        sheet = client.open(SHEET_CONFIG["sheet_name"])
-        # Normalize key here as well just in case
-        normalized_key = worksheet_key.strip().lower()
-        return sheet.worksheet(SHEET_CONFIG["worksheets"][normalized_key])
+        # Open by unique Sheet ID instead of name
+        sheet = client.open_by_key(SHEET_CONFIG["sheet_id"])
+        tab_name = SHEET_CONFIG["worksheets"][key]
+        return sheet.worksheet(tab_name)
     except Exception as e:
         st.error(f"Error accessing worksheet '{worksheet_key}': {e}")
         return None
 
 def batch_append(worksheet_key, data_list):
     """
-    Appends multiple rows to the specified worksheet efficiently.
+    Appends multiple rows to the specified worksheet efficiently using batch updates.
     Includes UI feedback to prevent double submissions.
     """
-    # Normalize key to handle case sensitivity and whitespace
-    worksheet_key = worksheet_key.strip().lower()
-
     if not data_list:
         st.warning("No data to append.")
         return False
 
     with st.status("Saving to Cloud...", expanded=True) as status:
-        st.write(f"Connecting to {SHEET_CONFIG['worksheets'].get(worksheet_key, worksheet_key)} worksheet...")
+        st.write("Establishing connection to database...")
         worksheet = get_worksheet(worksheet_key)
         
         if worksheet is None:
-            status.update(label="Failed to connect to worksheet.", state="error")
+            status.update(label="Connection Failed.", state="error")
             return False
             
         try:
-            st.write(f"Appending {len(data_list)} rows...")
+            st.write(f"Appending {len(data_list)} record(s) to cloud storage...")
             worksheet.append_rows(data_list, value_input_option='USER_ENTERED')
-            status.update(label="Successfully saved to Cloud!", state="complete")
-            time.sleep(1) # Brief pause for user to see success message
+            status.update(label="Successfully Saved!", state="complete")
+            time.sleep(1) # Brief pause for user feedback
             return True
         except Exception as e:
             st.write(f"API Error: {e}")
-            status.update(label="Failed to save data.", state="error")
+            status.update(label="Save Operation Failed.", state="error")
             return False
             
 def fetch_all_records(worksheet_key):
-    """Fetches all records for analytics."""
-    # Normalize key
-    worksheet_key = worksheet_key.strip().lower()
+    """
+    Fetches all records for analytics.
+    """
     worksheet = get_worksheet(worksheet_key)
     if worksheet is None:
         return []
