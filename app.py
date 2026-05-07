@@ -9,15 +9,14 @@ st.set_page_config(
     layout="wide"
 )
 
-# --- AUTHENTICATION ---
 def check_password():
-    \"\"\"Returns `True` if the user had the correct password.\"\"\"
+    """Returns True if the user had the correct password."""
 
     def password_entered():
-        \"\"\"Checks whether a password entered by the user is correct.\"\"\"
+        """Checks whether a password entered by the user is correct."""
         if st.session_state["password"] == st.secrets["app_password"]:
             st.session_state["password_correct"] = True
-            del st.session_state["password"]  # don't store password
+            del st.session_state["password"]  # Don't store password
         else:
             st.session_state["password_correct"] = False
 
@@ -38,34 +37,36 @@ def check_password():
         # Password correct.
         return True
 
-# --- MAIN APP ---
 def main():
-    if check_password():
-        # --- SESSION STATE INITIALIZATION ---
-        if "workout_session" not in st.session_state:
-            st.session_state.workout_session = False
-        if "custom_exercises" not in st.session_state:
-            st.session_state.custom_exercises = [""]
+    """Main application entry point."""
+    if not check_password():
+        st.stop()  # Halt execution until authenticated
 
-        # --- APP HEADER ---
-        st.title("📊 Personal Activity Dashboard")
-        st.markdown("Automated Routine & Health Management System")
+    # --- SESSION STATE INITIALIZATION ---
+    if "workout_session" not in st.session_state:
+        st.session_state.workout_session = False
+    if "custom_exercises" not in st.session_state:
+        st.session_state.custom_exercises = [""]
 
-        # --- NAVIGATION ROUTER ---
-        # Renamed tabs for discretion
-        tabs = st.tabs(["📝 Training Logs", "🏃 Movement Logs", "💊 Health & Routine", "📈 Insights & Trends"])
+    # --- APP HEADER ---
+    st.title("📊 Personal Activity Dashboard")
+    st.markdown("Automated Routine & Health Management System")
 
-        with tabs[0]:
-            render_workout_form()
+    # --- NAVIGATION ROUTER ---
+    # Rebranded tabs for discretion and professional tone
+    tabs = st.tabs(["📊 Summary", "📝 Activity A", "📝 Activity B", "🌿 Wellness"])
 
-        with tabs[1]:
-            render_running_form()
+    with tabs[0]:
+        render_analytics()
 
-        with tabs[2]:
-            render_biohack_form()
+    with tabs[1]:
+        render_workout_form()
 
-        with tabs[3]:
-            render_analytics()
+    with tabs[2]:
+        render_running_form()
+
+    with tabs[3]:
+        render_biohack_form()
 
 if __name__ == "__main__":
     main()
