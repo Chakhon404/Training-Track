@@ -11,7 +11,8 @@ sys.path.insert(0, os.path.abspath(os.path.join(os.path.dirname(__file__), '..')
 @patch('streamlit.secrets')
 def test_fetch_plans(mock_secrets, mock_create_client):
     from modules.database import TrainingDB
-    mock_secrets.get.return_value = "dummy"
+    # Use __getitem__ to mock st.secrets["KEY"]
+    mock_secrets.__getitem__.side_effect = lambda key: "dummy"
     mock_supabase = MagicMock()
     mock_create_client.return_value = mock_supabase
     
@@ -30,7 +31,7 @@ def test_fetch_plans(mock_secrets, mock_create_client):
 @patch('streamlit.secrets')
 def test_add_plan(mock_secrets, mock_create_client):
     from modules.database import TrainingDB
-    mock_secrets.get.return_value = "dummy"
+    mock_secrets.__getitem__.side_effect = lambda key: "dummy"
     mock_supabase = MagicMock()
     mock_create_client.return_value = mock_supabase
     
@@ -45,3 +46,52 @@ def test_add_plan(mock_secrets, mock_create_client):
     assert result[0]["name"] == "New Plan"
     mock_supabase.table.assert_called_with("training_plans")
     mock_supabase.table.return_value.insert.assert_called_with(plan_data)
+
+@patch('modules.database.create_client')
+@patch('streamlit.secrets')
+def test_save_workout(mock_secrets, mock_create_client):
+    from modules.database import TrainingDB
+    mock_secrets.__getitem__.side_effect = lambda key: "dummy"
+    mock_supabase = MagicMock()
+    mock_create_client.return_value = mock_supabase
+    
+    db = TrainingDB()
+    workout_data = [{"exercise": "Squat", "sets": 3}]
+    result = db.save_workout(workout_data)
+    
+    assert result is True
+    mock_supabase.table.assert_called_with("workouts")
+    mock_supabase.table.return_value.insert.assert_called_with(workout_data)
+
+@patch('modules.database.create_client')
+@patch('streamlit.secrets')
+def test_save_nutrition(mock_secrets, mock_create_client):
+    from modules.database import TrainingDB
+    mock_secrets.__getitem__.side_effect = lambda key: "dummy"
+    mock_supabase = MagicMock()
+    mock_create_client.return_value = mock_supabase
+    
+    db = TrainingDB()
+    nutrition_data = {"calories": 2500}
+    result = db.save_nutrition(nutrition_data)
+    
+    assert result is True
+    mock_supabase.table.assert_called_with("nutrition")
+    mock_supabase.table.return_value.insert.assert_called_with(nutrition_data)
+
+@patch('modules.database.create_client')
+@patch('streamlit.secrets')
+def test_error_handling(mock_secrets, mock_create_client):
+    from modules.database import TrainingDB
+    mock_secrets.__getitem__.side_effect = lambda key: "dummy"
+    mock_supabase = MagicMock()
+    mock_create_client.return_value = mock_supabase
+    
+    # Force an exception during execute()
+    mock_supabase.table.return_value.select.return_value.execute.side_effect = Exception("Supabase Error")
+    
+    db = TrainingDB()
+    with patch('streamlit.error') as mock_error:
+        plans = db.fetch_plans()
+        assert plans == []
+        mock_error.assert_called()
