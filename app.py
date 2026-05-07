@@ -1,72 +1,84 @@
 import streamlit as st
-from modules.forms import render_workout_form, render_running_form, render_biohack_form
+from modules.forms import render_workout_form, render_running_form, render_biohack_form, render_plan_builder
 from modules.analytics import render_analytics, render_overview, render_nutrition_analysis
+from modules.gsheet_api import get_gspread_client
 
 # --- PAGE CONFIG ---
 st.set_page_config(
-    page_title="Dashboard",
-    page_icon="📊",
-    layout="wide"
+    page_title="Training Track",
+    page_icon="🎯",
+    layout="wide",
+    initial_sidebar_state="expanded"
 )
 
 def check_password():
     """Returns True if the user had the correct password."""
-
-    def password_entered():
-        """Checks whether a password entered by the user is correct."""
-        if st.session_state["password"] == st.secrets["app_password"]:
-            st.session_state["password_correct"] = True
-            del st.session_state["password"]  # Don't store password
-        else:
-            st.session_state["password_correct"] = False
-
     if "password_correct" not in st.session_state:
-        # First run, show input for password.
-        st.text_input(
-            "Access Key", type="password", on_change=password_entered, key="password"
-        )
-        return False
-    elif not st.session_state["password_correct"]:
-        # Password not correct, show input + error.
-        st.text_input(
-            "Access Key", type="password", on_change=password_entered, key="password"
-        )
-        st.error("😕 Access Denied.")
-        return False
-    else:
-        # Password correct.
+        st.session_state["password_correct"] = False
+
+    if st.session_state["password_correct"]:
         return True
+
+    st.title("🔐 Secure Access")
+    pwd = st.text_input("Access Key", type="password")
+    if st.button("Unlock Dashboard"):
+        if pwd == st.secrets["app_password"]:
+            st.session_state["password_correct"] = True
+            st.rerun()
+        else:
+            st.error("Invalid Key.")
+    return False
 
 def main():
     """Main application entry point."""
     if not check_password():
-        st.stop()  # Halt execution until authenticated
+        st.stop()
 
-    # --- SESSION STATE INITIALIZATION ---
-    if "workout_session" not in st.session_state:
-        st.session_state.workout_session = False
-    if "custom_exercises" not in st.session_state:
-        st.session_state.custom_exercises = [""]
+    client = get_gspread_client()
+
+    # --- SIDEBAR STATUS ---
+    with st.sidebar:
+        st.title("⚙️ System Management")
+        if client:
+            st.success("Database Online")
+        else:
+            st.error("Database Offline")
+        
+        if st.button("🔄 Refresh Data"):
+            st.cache_data.clear()
+            st.rerun()
+            
+        st.divider()
+        if client:
+            show_plan_builder = st.toggle("🛠️ Open Plan Builder", value=False)
+        else:
+            show_plan_builder = False
 
     # --- APP HEADER ---
-    st.title("📊 Personal Activity Dashboard")
-    st.markdown("Automated Routine & Health Management System")
+    st.title("🎯 Training & Health Track")
+    st.markdown("---")
 
-    # --- NAVIGATION ROUTER ---
-    # Rebranded tabs for discretion and professional tone
-    tabs = st.tabs(["Overview", "Weight", "Training", "Running", "Nutrients"])
+    if show_plan_builder:
+        render_plan_builder()
+        st.stop()
+
+    # --- NAVIGATION ---
+    tabs = st.tabs(["🏠 Overview", "🏋️ Training", "🏃 Movement", "📉 Analytics", "🍱 Nutrition"])
 
     with tabs[0]:
         render_overview()
 
     with tabs[1]:
-        render_analytics()
+        if client:
+            render_workout_form()
+        else:
+            st.warning("Database offline. Cannot load training plans.")
 
     with tabs[2]:
-        render_workout_form()
+        render_running_form()
 
     with tabs[3]:
-        render_running_form()
+        render_analytics()
 
     with tabs[4]:
         render_nutrition_analysis()
