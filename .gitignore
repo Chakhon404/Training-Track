@@ -19,6 +19,7 @@ wheels/
 *.egg-info/
 .installed.cfg
 *.egg
+.streamlit
 
 # Virtual Environment
 venv/
@@ -38,3 +39,5 @@ desktop.ini
 
 # Logs
 *.log
+
+modules\__pycache__

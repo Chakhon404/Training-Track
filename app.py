@@ -1,6 +1,6 @@
 import streamlit as st
 from modules.forms import render_workout_form, render_running_form, render_biohack_form
-from modules.analytics import render_analytics
+from modules.analytics import render_analytics, render_overview, render_nutrition_analysis
 
 # --- PAGE CONFIG ---
 st.set_page_config(
@@ -54,18 +54,23 @@ def main():
 
     # --- NAVIGATION ROUTER ---
     # Rebranded tabs for discretion and professional tone
-    tabs = st.tabs(["📊 Summary", "📝 Activity A", "📝 Activity B", "🌿 Wellness"])
+    tabs = st.tabs(["Overview", "Weight", "Training", "Running", "Nutrients"])
 
     with tabs[0]:
-        render_analytics()
+        render_overview()
 
     with tabs[1]:
-        render_workout_form()
+        render_analytics()
 
     with tabs[2]:
-        render_running_form()
+        render_workout_form()
 
     with tabs[3]:
+        render_running_form()
+
+    with tabs[4]:
+        render_nutrition_analysis()
+        st.divider()
         render_biohack_form()
 
 if __name__ == "__main__":

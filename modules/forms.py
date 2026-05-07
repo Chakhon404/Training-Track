@@ -22,8 +22,13 @@ def render_workout_form():
     if "custom_exercises" not in st.session_state:
         st.session_state.custom_exercises = [""]
 
-    # Use .date() for clean date objects
-    log_date = st.date_input("Log Date", datetime.now().date(), key="workout_date_picker")
+    # Use .date() and .time() for clean date and time objects
+    col_d, col_t = st.columns(2)
+    with col_d:
+        log_date = st.date_input("Log Date", datetime.now().date(), key="workout_date_picker")
+    with col_t:
+        log_time = st.time_input("Log Time", datetime.now().time(), key="workout_time_picker")
+    log_datetime = f"{log_date} {log_time.strftime('%H:%M')}"
 
     with st.form(key=f"workout_form_{selected_template}"):
         exercises = WORKOUT_TEMPLATES[selected_template] if selected_template != "Custom" else st.session_state.custom_exercises
@@ -63,7 +68,7 @@ def render_workout_form():
                 if item["name"].strip():
                     volume = item["weight"] * item["sets"] * item["reps"]
                     final_rows.append([
-                        str(log_date),
+                        log_datetime,
                         selected_template,
                         item["name"],
                         item["weight"],
@@ -87,7 +92,12 @@ def render_workout_form():
 def render_running_form():
     st.subheader("🏃 Movement Logs")
     
-    log_date = st.date_input("Date", datetime.now().date(), key="run_date_picker")
+    col_d, col_t = st.columns(2)
+    with col_d:
+        log_date = st.date_input("Date", datetime.now().date(), key="run_date_picker")
+    with col_t:
+        log_time = st.time_input("Time", datetime.now().time(), key="run_time_picker")
+    log_datetime = f"{log_date} {log_time.strftime('%H:%M')}"
 
     with st.form(key="running_form_v1"):
         col1, col2 = st.columns(2)
@@ -112,7 +122,7 @@ def render_running_form():
                 else:
                     pace_str = "0:00"
                 
-                run_row = [[str(log_date), dist, dur, pace_str, hr, hrr]]
+                run_row = [[log_datetime, dist, dur, pace_str, hr, hrr]]
                 if batch_append("running", run_row):
                     st.success("Activity log updated.")
             except ValueError:
@@ -121,44 +131,56 @@ def render_running_form():
 def render_biohack_form():
     st.subheader("💊 Health & Routine")
     
-    log_date = st.date_input("Date", datetime.now().date(), key="bio_date_picker")
+    col_d, col_t = st.columns(2)
+    with col_d:
+        log_date = st.date_input("Date", datetime.now().date(), key="bio_date_picker")
+    with col_t:
+        log_time = st.time_input("Time", datetime.now().time(), key="bio_time_picker")
+    log_datetime = f"{log_date} {log_time.strftime('%H:%M')}"
 
     with st.form(key="biohack_form_v1"):
-        st.markdown("### Routine Compliance")
-        c1, c2, c3 = st.columns(3)
+        st.markdown("### Supplements & Basics")
+        c1, c2, c3, c4 = st.columns(4)
         with c1:
-            fish_oil = st.checkbox("Item A", key="bio_fish")
-            astax = st.checkbox("Item B", key="bio_astax")
+            creatine = st.checkbox("Creatine", key="bio_creatine")
         with c2:
-            mag = st.checkbox("Item C", key="bio_mag")
-            zinc = st.checkbox("Item D", key="bio_zinc")
+            protein_p = st.checkbox("Protein Powder", key="bio_protein_p")
         with c3:
-            b_comp = st.checkbox("Item E", key="bio_bcomp")
-            creatine = st.checkbox("Item F", key="bio_creatine")
+            multiv = st.checkbox("Multi-Vitamin", key="bio_multiv")
+        with c4:
+            omega3 = st.checkbox("Omega 3", key="bio_omega3")
         
         st.divider()
         st.markdown("### Status Monitoring (1-10)")
         s1, s2 = st.columns(2)
         with s1:
-            shoulder = st.slider("Stability Score", 1, 10, 5, key="bio_shoulder")
+            pppd = st.slider("Equilibrium Score (PPPD)", 1, 10, 1, key="bio_pppd")
         with s2:
-            pppd = st.slider("Equilibrium Score", 1, 10, 1, key="bio_pppd")
+            shoulder = st.slider("Stability Score (Shoulder)", 1, 10, 5, key="bio_shoulder")
             
         st.divider()
-        st.markdown("### Nutrition Logs")
-        n1, n2 = st.columns(2)
+        st.markdown("### Macronutrient Distribution & Energy Balance")
+        n1, n2, n3, n4 = st.columns(4)
         with n1:
-            protein = st.number_input("Protein Intake", min_value=0, step=1, key="bio_protein")
+            calories = st.number_input("Calories (kcal)", min_value=0, step=50, key="bio_calories")
         with n2:
-            cal_status = st.selectbox("Status", ["Deficit", "Maintenance", "Surplus"], key="bio_cal")
+            protein_g = st.number_input("Protein (g)", min_value=0, step=1, key="bio_protein_g")
+        with n3:
+            carb_g = st.number_input("Carbs (g)", min_value=0, step=1, key="bio_carb_g")
+        with n4:
+            fat_g = st.number_input("Fat (g)", min_value=0, step=1, key="bio_fat_g")
+            
+        weight_kg = st.number_input("Weight (kg)", min_value=0.0, step=0.1, key="bio_weight_kg")
 
         submitted = st.form_submit_button("✅ Update Health Log")
         
         if submitted:
+            # Order: [Date, Creatine, Protein_P, MultiV, Omega3, PPPD, Shoulder, Calories, Protein_g, Carb_g, Fat_g, Weight_kg]
             bio_row = [[
-                str(log_date), 
-                int(fish_oil), int(astax), int(mag), int(zinc), int(b_comp), int(creatine),
-                shoulder, pppd, protein, cal_status
+                log_datetime, 
+                int(creatine), int(protein_p), int(multiv), int(omega3),
+                pppd, shoulder, 
+                calories, protein_g, carb_g, fat_g, weight_kg
             ]]
             if batch_append("biohack", bio_row):
                 st.success("Daily routine updated.")
