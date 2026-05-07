@@ -50,13 +50,17 @@ def get_worksheet(worksheet_key):
         return None
 
 def batch_append(worksheet_key, data_list):
-    """
+    \"\"\"
     Appends multiple rows to the specified worksheet efficiently.
     Includes UI feedback to prevent double submissions.
-    """
+    \"\"\"
+    # Normalize key to handle case sensitivity and whitespace
+    worksheet_key = worksheet_key.strip().lower()
+
     if not data_list:
         st.warning("No data to append.")
         return False
+
 
     with st.status("Saving to Cloud...", expanded=True) as status:
         st.write(f"Connecting to {SHEET_CONFIG['worksheets'][worksheet_key]} worksheet...")
