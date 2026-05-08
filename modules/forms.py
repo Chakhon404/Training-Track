@@ -114,6 +114,16 @@ def render_workout_form():
         ex_t = ex['type']
 
         st.markdown(f"#### {ex_n} ({ex_t})")
+        history = db.fetch_exercise_history(ex_n)
+        if history:
+            import pandas as pd
+            hist_str = " → ".join([
+                f"{h['weight']}kg × {h['sets']}×{h['reps']} @ RPE {h['rpe']}"
+                if h['weight'] > 0 else
+                f"{h['sets']}×{h['reps']} @ RPE {h['rpe']}"
+                for h in history
+            ])
+            st.caption(f"📊 Last {len(history)}: {hist_str}")
 
         if ex_t == "Heavy":
             c1, c2, c3 = st.columns(3)

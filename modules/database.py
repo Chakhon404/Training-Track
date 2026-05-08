@@ -113,6 +113,21 @@ class TrainingDB:
             st.error(f"Failed to fetch weight: {e}")
             return []
 
+    def fetch_exercise_history(self, exercise_name: str, limit: int = 3):
+        if not self.is_connected(): return []
+        try:
+            response = (
+                self.supabase.table("workouts")
+                .select("log_ts, weight, sets, reps, rpe")
+                .eq("exercise", exercise_name)
+                .order("log_ts", desc=True)
+                .limit(limit)
+                .execute()
+            )
+            return response.data
+        except Exception:
+            return []
+
     def save_draft(self, form_key: str, data: dict):
         if not self.is_connected(): return None
         try:
