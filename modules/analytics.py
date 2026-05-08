@@ -174,60 +174,73 @@ def render_nutrition_analysis():
 def render_overview():
     st.title("🏠 Dashboard Overview")
     db = get_db()
+    today = datetime.now().date()
     
-    with st.spinner("Loading metrics..."):
-        weight_data = db.fetch_weight()
-        df_w = pd.DataFrame(weight_data).rename(columns={'log_ts': 'Date', 'weight': 'Weight'})
-        df_w = safe_numeric(df_w, ['Weight'])
+    with st.spinner("Loading today's activity..."):
+        # Section A: Today's Summary
+        workouts = db.fetch_workouts()
+        weights = db.fetch_weight()
+        nutrition = db.fetch_nutrition()
+        runs = db.fetch_runs()
 
-        nut_data = db.fetch_nutrition()
-        df_b = pd.DataFrame(nut_data).rename(columns={
-            'log_ts': 'Date',
-            'calories': 'Calories (kcal)',
-            'protein_g': 'Protein (g)',
-            'carbs_g': 'Carbs (g)',
-            'fat_g': 'Fat (g)'
-        })
-        df_b = safe_numeric(df_b, ['Calories (kcal)', 'Protein (g)', 'Carbs (g)', 'Fat (g)'])
+        # Filter for today
+        today_str = today.strftime("%Y-%m-%d")
+        wrk_today = [w for w in workouts if w['log_ts'].startswith(today_str)]
+        wgt_today = [w for w in weights if w['log_ts'].startswith(today_str)]
+        nut_today = [n for n in nutrition if n['log_ts'].startswith(today_str)]
+        run_today = [r for r in runs if r['log_ts'].startswith(today_str)]
 
-        workout_data = db.fetch_workouts()
-        df_wrk = pd.DataFrame(workout_data).rename(columns={'log_ts': 'Date', 'volume': 'Volume'})
-        df_wrk = safe_numeric(df_wrk, ['Volume'])
-
-    k1, k2 = st.columns(2)
-    k1.metric("Latest Weight", f"{df_w['Weight'].iloc[-1]:.1f} kg" if not df_w.empty and 'Weight' in df_w.columns else "N/A")
-    
-    if not df_b.empty and 'Calories (kcal)' in df_b.columns:
-        cal = df_b['Calories (kcal)'].iloc[-1]
-        k2.metric("Energy Balance", f"{cal:.0f} kcal", delta=f"{cal-2500:.0f} vs Goal", delta_color="inverse")
-    else:
-        k2.metric("Energy Balance", "N/A")
-
-    # --- MACRO ROW ---
-    if not df_b.empty and 'Protein (g)' in df_b.columns and 'Carbs (g)' in df_b.columns and 'Fat (g)' in df_b.columns:
-        latest_bio = df_b.iloc[-1]
-        m1, m2, m3 = st.columns(3)
+        c1, c2, c3, c4 = st.columns(4)
+        c1.metric("🏋️ Training", f"{len(wrk_today)} Exercises" if wrk_today else "Rest Day")
+        c2.metric("⚖️ Weight", f"{wgt_today[-1]['weight']} kg" if wgt_today else "Not logged")
+        c3.metric("🍱 Nutrition", f"{nut_today[-1]['calories']} kcal" if nut_today else "Not logged")
         
-        with m1:
-            prot = float(latest_bio.get("Protein (g)", 0))
-            target_p = 160
-            st.metric("Protein", f"{prot:.1f} / {target_p}g", delta=f"{prot - target_p:.1f}g")
-            
-        with m2:
-            carb = float(latest_bio.get("Carbs (g)", 0))
-            target_c = 300
-            st.metric("Carbohydrates", f"{carb:.1f} / {target_c}g", delta=f"{carb - target_c:.1f}g")
-            
-        with m3:
-            fat = float(latest_bio.get("Fat (g)", 0))
-            target_f = 70
-            st.metric("Fats", f"{fat:.1f} / {target_f}g", delta=f"{fat - target_f:.1f}g")
+        total_dist = sum([r['distance'] for r in run_today])
+        c4.metric("🏃 Movement", f"{total_dist:.1f} km" if total_dist > 0 else "Rest Day")
 
     st.divider()
-    l, r = st.columns(2)
+
+    # Section B: Progressive Overload Alert
+    st.subheader("📈 Progressive Overload Tracking")
+    vol_data = db.fetch_weekly_volume()
+    if vol_data:
+        df_vol = pd.DataFrame(vol_data)
+        df_vol['log_ts'] = pd.to_datetime(df_vol['log_ts'])
+        df_vol['week'] = df_vol['log_ts'].dt.isocalendar().week
+        df_vol['year'] = df_vol['log_ts'].dt.isocalendar().year
+        
+        weekly_totals = df_vol.groupby(['year', 'week'])['volume'].sum().sort_index(ascending=False)
+        
+        if len(weekly_totals) >= 2:
+            curr_vol = weekly_totals.iloc[0]
+            prev_vol = weekly_totals.iloc[1]
+            
+            if prev_vol > 0:
+                diff_pct = ((curr_vol - prev_vol) / prev_vol) * 100
+                if curr_vol >= prev_vol:
+                    st.success(f"✅ On track — volume up {diff_pct:.1f}% vs last week.")
+                else:
+                    st.warning(f"⚠️ Weekly volume is down {abs(diff_pct):.1f}% vs last week.")
+            else:
+                st.info("📊 Comparison not possible (previous week volume was 0).")
+        else:
+            st.info("📊 Log at least 2 weeks of training to see overload trends.")
+    else:
+        st.info("📊 Log training sessions to see overload trends.")
+
+    st.divider()
     
+    # Section C: Keep existing charts
+    l, r = st.columns(2)
+    with st.spinner("Generating charts..."):
+        # Re-fetch for charts if needed or use previous data
+        df_w = pd.DataFrame(weights).rename(columns={'log_ts': 'Date', 'weight': 'Weight'})
+        df_w = safe_numeric(df_w, ['Weight'])
+        
+        df_wrk = pd.DataFrame(workouts).rename(columns={'log_ts': 'Date', 'volume': 'Volume'})
+        df_wrk = safe_numeric(df_wrk, ['Volume'])
+
     with l:
         render_chart_safely(df_wrk, 'Date', 'Volume', "Weekly Training Volume")
-
     with r:
         render_chart_safely(df_w, 'Date', 'Weight', "Weight Progression")
