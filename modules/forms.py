@@ -199,30 +199,59 @@ def render_running_form():
 def render_biohack_form():
     db = get_db()
     st.subheader("🍱 Nutrition Log")
+    form_key = f"draft_nutrition_{st.session_state.get('user_id', 'default')}"
 
-    with st.form(key="nut_form"):
-        col_d, col_t = st.columns(2)
-        with col_d:
-            l_date = st.date_input("Date", datetime.now().date())
-        with col_t:
-            l_time = st.time_input("Time", datetime.now().time())
+    if "nut_draft_loaded" not in st.session_state:
+        draft = db.load_draft(form_key) or {}
+        st.session_state.nut_date = datetime.strptime(draft.get("date", datetime.now().strftime("%Y-%m-%d")), "%Y-%m-%d").date()
+        st.session_state.nut_time = datetime.strptime(draft.get("time", datetime.now().strftime("%H:%M:%S")), "%H:%M:%S").time()
+        st.session_state.nut_crea = draft.get("crea", False)
+        st.session_state.nut_prot = draft.get("prot", False)
+        st.session_state.nut_vit = draft.get("vit", False)
+        st.session_state.nut_omg = draft.get("omg", False)
+        st.session_state.nut_cal = draft.get("cal", 0)
+        st.session_state.nut_pg = draft.get("p_g", 0)
+        st.session_state.nut_cg = draft.get("c_g", 0)
+        st.session_state.nut_fg = draft.get("f_g", 0)
+        st.session_state.nut_draft_loaded = True
 
-        st.markdown("### Supplements")
-        c1, c2, c3, c4 = st.columns(4)
-        crea = c1.checkbox("Creatine")
-        prot = c2.checkbox("Protein Powder")
-        vit = c3.checkbox("Multi-Vitamin")
-        omg = c4.checkbox("Omega 3")
+    def save_nut_draft():
+        data = {
+            "date": str(st.session_state.nut_date),
+            "time": st.session_state.nut_time.strftime("%H:%M:%S"),
+            "crea": st.session_state.nut_crea,
+            "prot": st.session_state.nut_prot,
+            "vit": st.session_state.nut_vit,
+            "omg": st.session_state.nut_omg,
+            "cal": st.session_state.nut_cal,
+            "p_g": st.session_state.nut_pg,
+            "c_g": st.session_state.nut_cg,
+            "f_g": st.session_state.nut_fg
+        }
+        db.save_draft(form_key, data)
 
-        st.divider()
-        st.markdown("### Energy & Macros")
-        n1, n2, n3, n4 = st.columns(4)
-        cal = n1.number_input("Calories", min_value=0, step=50)
-        p_g = n2.number_input("Protein (g)", min_value=0, step=1)
-        c_g = n3.number_input("Carbs (g)", min_value=0, step=1)
-        f_g = n4.number_input("Fat (g)", min_value=0, step=1)
+    col_d, col_t = st.columns(2)
+    with col_d:
+        l_date = st.date_input("Date", key="nut_date", on_change=save_nut_draft)
+    with col_t:
+        l_time = st.time_input("Time", key="nut_time", on_change=save_nut_draft)
 
-        submitted = st.form_submit_button("✅ Save Nutrition")
+    st.markdown("### Supplements")
+    c1, c2, c3, c4 = st.columns(4)
+    crea = c1.checkbox("Creatine", key="nut_crea", on_change=save_nut_draft)
+    prot = c2.checkbox("Protein Powder", key="nut_prot", on_change=save_nut_draft)
+    vit = c3.checkbox("Multi-Vitamin", key="nut_vit", on_change=save_nut_draft)
+    omg = c4.checkbox("Omega 3", key="nut_omg", on_change=save_nut_draft)
+
+    st.divider()
+    st.markdown("### Energy & Macros")
+    n1, n2, n3, n4 = st.columns(4)
+    cal = n1.number_input("Calories", min_value=0, step=50, key="nut_cal", on_change=save_nut_draft)
+    p_g = n2.number_input("Protein (g)", min_value=0, step=1, key="nut_pg", on_change=save_nut_draft)
+    c_g = n3.number_input("Carbs (g)", min_value=0, step=1, key="nut_cg", on_change=save_nut_draft)
+    f_g = n4.number_input("Fat (g)", min_value=0, step=1, key="nut_fg", on_change=save_nut_draft)
+
+    submitted = st.button("✅ Save Nutrition")
 
     if submitted:
         log_ts = get_timestamp(l_date, l_time)
@@ -239,3 +268,5 @@ def render_biohack_form():
         }
         if db.save_nutrition(nut_data):
             st.success("✅ Nutrition data saved.")
+            db.clear_draft(form_key)
+            del st.session_state.nut_draft_loaded
