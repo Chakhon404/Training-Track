@@ -45,6 +45,8 @@ def main():
             st.error("Database Offline")
         
         if st.button("🔄 Refresh Data"):
+            for key in ["work_draft_loaded", "run_draft_loaded", "nut_draft_loaded", "weight_draft_loaded"]:
+                st.session_state.pop(key, None)
             st.cache_data.clear()
             st.rerun()
             
