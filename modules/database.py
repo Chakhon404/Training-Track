@@ -104,6 +104,35 @@ class TrainingDB:
             st.error(f"Failed to fetch weight: {e}")
             return []
 
+    def save_draft(self, form_key: str, data: dict):
+        if not self.is_connected(): return None
+        try:
+            response = self.supabase.table("drafts").upsert(
+                {"form_key": form_key, "data": data},
+                on_conflict="form_key"
+            ).execute()
+            return response.data
+        except Exception:
+            return None
+
+    def load_draft(self, form_key: str):
+        if not self.is_connected(): return None
+        try:
+            response = self.supabase.table("drafts").select("data").eq("form_key", form_key).execute()
+            if response.data and len(response.data) > 0:
+                return response.data[0]["data"]
+            return None
+        except Exception:
+            return None
+
+    def clear_draft(self, form_key: str):
+        if not self.is_connected(): return None
+        try:
+            response = self.supabase.table("drafts").delete().eq("form_key", form_key).execute()
+            return response.data
+        except Exception:
+            return None
+
 @st.cache_resource
 def get_db():
     return TrainingDB()
