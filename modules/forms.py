@@ -62,43 +62,76 @@ def render_workout_form():
         return
 
     plan_names = [p['name'] for p in plans]
+    form_key = f"draft_workout_{st.session_state.get('user_id', 'default')}"
 
-    # ── ทุกอย่างอยู่ใน form เดียว ป้องกัน re-run reset ──
-    with st.form(key="workout_form"):
-        selected_plan_name = st.selectbox("Select Training Plan", plan_names)
-        selected_plan = next(p for p in plans if p['name'] == selected_plan_name)
+    if "work_draft_loaded" not in st.session_state:
+        draft = db.load_draft(form_key) or {}
+        st.session_state.work_date = datetime.strptime(draft.get("date", datetime.now().strftime("%Y-%m-%d")), "%Y-%m-%d").date()
+        st.session_state.work_time = datetime.strptime(draft.get("time", datetime.now().strftime("%H:%M:%S")), "%H:%M:%S").time()
+        
+        saved_plan = draft.get("plan_name")
+        st.session_state.work_plan_name = saved_plan if saved_plan in plan_names else plan_names[0]
+        
+        dyn_fields = draft.get("exercises", {})
+        for k, v in dyn_fields.items():
+            st.session_state[k] = v
+            
+        st.session_state.work_draft_loaded = True
 
-        col_d, col_t = st.columns(2)
-        with col_d:
-            l_date = st.date_input("Date", datetime.now().date())
-        with col_t:
-            l_time = st.time_input("Time", datetime.now().time())
+    def save_workout_draft():
+        curr_plan = st.session_state.work_plan_name
+        selected_plan = next((p for p in plans if p['name'] == curr_plan), None)
+        
+        ex_data = {}
+        if selected_plan:
+            for i, ex in enumerate(selected_plan['exercises']):
+                if ex['type'] == "Heavy":
+                    ex_data[f"work_w_{i}"] = st.session_state.get(f"work_w_{i}", 0.0)
+                ex_data[f"work_s_{i}"] = st.session_state.get(f"work_s_{i}", 0)
+                ex_data[f"work_r_{i}"] = st.session_state.get(f"work_r_{i}", 0)
+                ex_data[f"work_rpe_{i}"] = st.session_state.get(f"work_rpe_{i}", 7.0)
 
-        session_results = []
-        for i, ex in enumerate(selected_plan['exercises']):
-            ex_n = ex['name']
-            ex_t = ex['type']
+        data = {
+            "date": str(st.session_state.work_date),
+            "time": st.session_state.work_time.strftime("%H:%M:%S"),
+            "plan_name": curr_plan,
+            "exercises": ex_data
+        }
+        db.save_draft(form_key, data)
 
-            st.markdown(f"#### {ex_n} ({ex_t})")
+    selected_plan_name = st.selectbox("Select Training Plan", plan_names, key="work_plan_name", on_change=save_workout_draft)
+    selected_plan = next(p for p in plans if p['name'] == selected_plan_name)
 
-            if ex_t == "Heavy":
-                c1, c2, c3 = st.columns(3)
-                w = c1.number_input("Weight (kg)", min_value=0.0, step=0.5, key=f"w_{i}")
-                s = c2.number_input("Sets", min_value=0, step=1, key=f"s_{i}")
-                r = c3.number_input("Reps", min_value=0, step=1, key=f"r_{i}")
-            else:
-                c1, c2 = st.columns(2)
-                s = c1.number_input("Sets", min_value=0, step=1, key=f"s_{i}")
-                r = c2.number_input("Reps", min_value=0, step=1, key=f"r_{i}")
-                w = 0.0
+    col_d, col_t = st.columns(2)
+    with col_d:
+        l_date = st.date_input("Date", key="work_date", on_change=save_workout_draft)
+    with col_t:
+        l_time = st.time_input("Time", key="work_time", on_change=save_workout_draft)
 
-            rpe = st.slider("Intensity (RPE)", 1.0, 10.0, 7.0, 0.5, key=f"rpe_{i}")
-            session_results.append({"name": ex_n, "type": ex_t, "w": w, "s": s, "r": r, "rpe": rpe})
-            st.divider()
+    session_results = []
+    for i, ex in enumerate(selected_plan['exercises']):
+        ex_n = ex['name']
+        ex_t = ex['type']
 
-        submitted = st.form_submit_button("💾 Save Training Session")
+        st.markdown(f"#### {ex_n} ({ex_t})")
 
-    # ── handle submit นอก form (best practice) ──
+        if ex_t == "Heavy":
+            c1, c2, c3 = st.columns(3)
+            w = c1.number_input("Weight (kg)", min_value=0.0, step=0.5, key=f"work_w_{i}", on_change=save_workout_draft)
+            s = c2.number_input("Sets", min_value=0, step=1, key=f"work_s_{i}", on_change=save_workout_draft)
+            r = c3.number_input("Reps", min_value=0, step=1, key=f"work_r_{i}", on_change=save_workout_draft)
+        else:
+            c1, c2 = st.columns(2)
+            s = c1.number_input("Sets", min_value=0, step=1, key=f"work_s_{i}", on_change=save_workout_draft)
+            r = c2.number_input("Reps", min_value=0, step=1, key=f"work_r_{i}", on_change=save_workout_draft)
+            w = 0.0
+
+        rpe = st.slider("Intensity (RPE)", 1.0, 10.0, 7.0, 0.5, key=f"work_rpe_{i}", on_change=save_workout_draft)
+        session_results.append({"name": ex_n, "type": ex_t, "w": w, "s": s, "r": r, "rpe": rpe})
+        st.divider()
+
+    submitted = st.button("💾 Save Training Session")
+
     if submitted:
         log_ts = get_timestamp(l_date, l_time)
         final_rows = []
@@ -119,6 +152,8 @@ def render_workout_form():
         if final_rows:
             if db.save_workout(final_rows):
                 st.success(f"✅ Session saved: {len(final_rows)} exercises logged.")
+                db.clear_draft(form_key)
+                del st.session_state.work_draft_loaded
         else:
             st.warning("No exercises with sets > 0. Nothing saved.")
 
