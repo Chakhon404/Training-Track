@@ -40,4 +40,6 @@ desktop.ini
 # Logs
 *.log
 
-modules\__pycache__
+modules/__pycache__
+docs/superpowers/plans
+*.md

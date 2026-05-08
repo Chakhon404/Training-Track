@@ -169,6 +169,140 @@ class TrainingDB:
         except Exception:
             return None
 
+    # --- DUPLICATE DETECTION ---
+
+    def check_duplicate_workout(self, date: str) -> int:
+        """Returns count of exercises logged on given date (YYYY-MM-DD)"""
+        if not self.is_connected(): return 0
+        try:
+            response = (
+                self.supabase.table("workouts")
+                .select("id", count="exact")
+                .gte("log_ts", f"{date}T00:00:00")
+                .lte("log_ts", f"{date}T23:59:59")
+                .execute()
+            )
+            return response.count or 0
+        except Exception:
+            return 0
+
+    def check_duplicate_run(self, date: str) -> int:
+        """Returns count of runs logged on given date"""
+        if not self.is_connected(): return 0
+        try:
+            response = (
+                self.supabase.table("running")
+                .select("id", count="exact")
+                .gte("log_ts", f"{date}T00:00:00")
+                .lte("log_ts", f"{date}T23:59:59")
+                .execute()
+            )
+            return response.count or 0
+        except Exception:
+            return 0
+
+    def check_duplicate_nutrition(self, date: str) -> int:
+        """Returns count of nutrition entries logged on given date"""
+        if not self.is_connected(): return 0
+        try:
+            response = (
+                self.supabase.table("nutrition")
+                .select("id", count="exact")
+                .gte("log_ts", f"{date}T00:00:00")
+                .lte("log_ts", f"{date}T23:59:59")
+                .execute()
+            )
+            return response.count or 0
+        except Exception:
+            return 0
+
+    def check_duplicate_weight(self, date: str) -> int:
+        """Returns count of weight entries logged on given date"""
+        if not self.is_connected(): return 0
+        try:
+            response = (
+                self.supabase.table("weight")
+                .select("id", count="exact")
+                .gte("log_ts", f"{date}T00:00:00")
+                .lte("log_ts", f"{date}T23:59:59")
+                .execute()
+            )
+            return response.count or 0
+        except Exception:
+            return 0
+
+    # --- DELETE BY DATE (OVERWRITE) ---
+
+    def delete_workouts_by_date(self, date: str):
+        if not self.is_connected(): return None
+        try:
+            return self.supabase.table("workouts").delete()\
+                .gte("log_ts", f"{date}T00:00:00")\
+                .lte("log_ts", f"{date}T23:59:59")\
+                .execute()
+        except Exception:
+            return None
+
+    def delete_runs_by_date(self, date: str):
+        if not self.is_connected(): return None
+        try:
+            return self.supabase.table("running").delete()\
+                .gte("log_ts", f"{date}T00:00:00")\
+                .lte("log_ts", f"{date}T23:59:59")\
+                .execute()
+        except Exception:
+            return None
+
+    def delete_nutrition_by_date(self, date: str):
+        if not self.is_connected(): return None
+        try:
+            return self.supabase.table("nutrition").delete()\
+                .gte("log_ts", f"{date}T00:00:00")\
+                .lte("log_ts", f"{date}T23:59:59")\
+                .execute()
+        except Exception:
+            return None
+
+    def delete_weight_by_date(self, date: str):
+        if not self.is_connected(): return None
+        try:
+            return self.supabase.table("weight").delete()\
+                .gte("log_ts", f"{date}T00:00:00")\
+                .lte("log_ts", f"{date}T23:59:59")\
+                .execute()
+        except Exception:
+            return None
+
+    # --- DELETE BY ID ---
+
+    def delete_workout_by_id(self, entry_id: str):
+        if not self.is_connected(): return None
+        try:
+            return self.supabase.table("workouts").delete().eq("id", entry_id).execute()
+        except Exception:
+            return None
+
+    def delete_run_by_id(self, entry_id: str):
+        if not self.is_connected(): return None
+        try:
+            return self.supabase.table("running").delete().eq("id", entry_id).execute()
+        except Exception:
+            return None
+
+    def delete_nutrition_by_id(self, entry_id: str):
+        if not self.is_connected(): return None
+        try:
+            return self.supabase.table("nutrition").delete().eq("id", entry_id).execute()
+        except Exception:
+            return None
+
+    def delete_weight_by_id(self, entry_id: str):
+        if not self.is_connected(): return None
+        try:
+            return self.supabase.table("weight").delete().eq("id", entry_id).execute()
+        except Exception:
+            return None
+
 @st.cache_resource
 def get_db():
     return TrainingDB()

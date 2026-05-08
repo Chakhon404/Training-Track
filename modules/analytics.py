@@ -21,7 +21,7 @@ def render_chart_safely(df, x, y, title=None, chart_type='line'):
 
     # Clean data for plotting
     plot_df = df.copy()
-    plot_df[x] = pd.to_datetime(plot_df[x], errors='coerce')
+    plot_df[x] = pd.to_datetime(plot_df[x], format='ISO8601', errors='coerce')
     plot_df = plot_df.dropna(subset=[x, y])
     
     if plot_df.empty:
@@ -46,7 +46,7 @@ def predict_target_date(df_weights, target=64.0):
     if df_weights.empty: return "Collecting data for predictions..."
     
     df = df_weights.copy()
-    df['Date'] = pd.to_datetime(df['Date'], errors='coerce')
+    df['Date'] = pd.to_datetime(df['Date'], format='ISO8601', errors='coerce')
     df['Weight'] = pd.to_numeric(df['Weight'], errors='coerce')
     df = df.dropna(subset=['Date', 'Weight']).sort_values('Date')
 
@@ -172,40 +172,136 @@ def render_nutrition_analysis():
     st.bar_chart(pd.DataFrame(pct_data).set_index("Macro"), horizontal=True)
 
 def render_overview():
-    st.title("🏠 Dashboard Overview")
     db = get_db()
     today = datetime.now().date()
     
-    with st.spinner("Loading today's activity..."):
-        # Section A: Today's Summary
+    with st.spinner("Loading Today's Summary..."):
         workouts = db.fetch_workouts()
-        weights = db.fetch_weight()
-        nutrition = db.fetch_nutrition()
+        weight_logs = db.fetch_weight()
+        nutrition_logs = db.fetch_nutrition()
         runs = db.fetch_runs()
 
-        # Filter for today
-        today_str = today.strftime("%Y-%m-%d")
-        wrk_today = [w for w in workouts if w['log_ts'].startswith(today_str)]
-        wgt_today = [w for w in weights if w['log_ts'].startswith(today_str)]
-        nut_today = [n for n in nutrition if n['log_ts'].startswith(today_str)]
-        run_today = [r for r in runs if r['log_ts'].startswith(today_str)]
+        df_work = pd.DataFrame(workouts)
+        df_weight = pd.DataFrame(weight_logs)
+        df_nut = pd.DataFrame(nutrition_logs)
+        df_run = pd.DataFrame(runs)
 
-        c1, c2, c3, c4 = st.columns(4)
-        c1.metric("🏋️ Training", f"{len(wrk_today)} Exercises" if wrk_today else "Rest Day")
-        c2.metric("⚖️ Weight", f"{wgt_today[-1]['weight']} kg" if wgt_today else "Not logged")
-        c3.metric("🍱 Nutrition", f"{nut_today[-1]['calories']} kcal" if nut_today else "Not logged")
-        
-        total_dist = sum([r['distance'] for r in run_today])
-        c4.metric("🏃 Movement", f"{total_dist:.1f} km" if total_dist > 0 else "Rest Day")
+        # Parse timestamps with format='ISO8601'
+        for df in [df_work, df_weight, df_nut, df_run]:
+            if not df.empty and 'log_ts' in df.columns:
+                df['log_ts'] = pd.to_datetime(df['log_ts'], format='ISO8601')
+                df['date'] = df['log_ts'].dt.date
+
+        # Filter today
+        work_today = df_work[df_work['date'] == today] if not df_work.empty else pd.DataFrame()
+        weight_today = df_weight[df_weight['date'] == today] if not df_weight.empty else pd.DataFrame()
+        nut_today = df_nut[df_nut['date'] == today] if not df_nut.empty else pd.DataFrame()
+        run_today = df_run[df_run['date'] == today] if not df_run.empty else pd.DataFrame()
+
+    # Section A — Header
+    st.header("🏠 Daily Overview")
+    st.caption(f"Today: {today.strftime('%A, %d %B %Y')}")
+
+    # Section B — Activity Status Row
+    c1, c2, c3, c4 = st.columns(4)
+    
+    with c1:
+        if not work_today.empty:
+            count = work_today['exercise'].nunique()
+            vol = work_today['volume'].sum()
+            st.metric("🏋️ Training", f"{count} exercises", delta=f"{vol:,.0f} kg volume")
+        else:
+            st.metric("🏋️ Training", "Rest day")
+
+    with c2:
+        if not run_today.empty:
+            dist = run_today['distance'].sum()
+            cat = run_today.iloc[-1]['category']
+            st.metric("🏃 Movement", f"{dist:.1f} km", delta=cat)
+        else:
+            st.metric("🏃 Movement", "Rest day")
+
+    with c3:
+        if not weight_today.empty:
+            w = weight_today.iloc[-1]['weight']
+            st.metric("⚖️ Weight", f"{w} kg")
+        else:
+            st.metric("⚖️ Weight", "Not logged")
+
+    with c4:
+        if not nut_today.empty:
+            cal = int(nut_today.iloc[-1]['calories'])
+            goal_cal = 2500 # TODO: move to user_profiles table
+            st.metric("🍱 Calories", f"{cal} kcal", delta=f"{cal - goal_cal} vs Goal")
+        else:
+            st.metric("🍱 Calories", "Not logged")
 
     st.divider()
 
-    # Section B: Progressive Overload Alert
+    # Section C — Nutrition Detail Card
+    if not nut_today.empty:
+        with st.container(border=True):
+            st.markdown("### 🍱 Today's Nutrition")
+            latest_nut = nut_today.iloc[-1]
+            
+            m1, m2, m3 = st.columns(3)
+            with m1:
+                p = latest_nut.get('protein_g', 0)
+                p_goal = 150 # TODO: move to user_profiles table
+                st.metric("Protein", f"{p}g", delta=f"{p - p_goal}g vs Goal")
+            with m2:
+                st.metric("Carbs", f"{latest_nut.get('carbs_g', 0)}g")
+            with m3:
+                st.metric("Fat", f"{latest_nut.get('fat_g', 0)}g")
+            
+            st.divider()
+            s1, s2, s3, s4 = st.columns(4)
+            supps = [
+                ("Creatine", "creatine"),
+                ("Protein Powder", "protein_powder"),
+                ("Multi-Vitamin", "multivitamin"),
+                ("Omega-3", "omega3")
+            ]
+            for col, (label, key) in zip([s1, s2, s3, s4], supps):
+                status = "✅" if latest_nut.get(key) else "❌"
+                col.markdown(f"**{label}**: {status}")
+    else:
+        st.info("🍱 No nutrition logged today.")
+
+    # Section D — Training Detail Card
+    if not work_today.empty:
+        with st.container(border=True):
+            st.markdown("### 🏋️ Today's Training")
+            st.dataframe(
+                work_today[['exercise', 'weight', 'sets', 'reps', 'volume', 'rpe']], 
+                hide_index=True,
+                use_container_width=True
+            )
+    else:
+        st.info("🏋️ No training logged today.")
+
+    # Section E — Movement Detail Card
+    if not run_today.empty:
+        with st.container(border=True):
+            st.markdown("### 🏃 Today's Movement")
+            # Show latest run details
+            last_run = run_today.iloc[-1]
+            r1, r2, r3, r4 = st.columns(4)
+            r1.metric("Distance", f"{last_run['distance']} km")
+            r2.metric("Duration", f"{last_run['duration']}")
+            r3.metric("Pace", f"{last_run['pace']} /km")
+            r4.metric("Avg HR", f"{last_run['hr']} bpm")
+    else:
+        st.info("🏃 No movement logged today.")
+
+    st.divider()
+
+    # Section F — Progressive Overload Alert
     st.subheader("📈 Progressive Overload Tracking")
     vol_data = db.fetch_weekly_volume()
     if vol_data:
         df_vol = pd.DataFrame(vol_data)
-        df_vol['log_ts'] = pd.to_datetime(df_vol['log_ts'])
+        df_vol['log_ts'] = pd.to_datetime(df_vol['log_ts'], format='ISO8601')
         df_vol['week'] = df_vol['log_ts'].dt.isocalendar().week
         df_vol['year'] = df_vol['log_ts'].dt.isocalendar().year
         
@@ -230,17 +326,171 @@ def render_overview():
 
     st.divider()
     
-    # Section C: Keep existing charts
+    # Section G — Trend Charts
     l, r = st.columns(2)
     with st.spinner("Generating charts..."):
-        # Re-fetch for charts if needed or use previous data
-        df_w = pd.DataFrame(weights).rename(columns={'log_ts': 'Date', 'weight': 'Weight'})
-        df_w = safe_numeric(df_w, ['Weight'])
+        df_w_plot = df_weight.rename(columns={'log_ts': 'Date', 'weight': 'Weight'})
+        df_w_plot = safe_numeric(df_w_plot, ['Weight'])
         
-        df_wrk = pd.DataFrame(workouts).rename(columns={'log_ts': 'Date', 'volume': 'Volume'})
-        df_wrk = safe_numeric(df_wrk, ['Volume'])
+        df_wrk_plot = df_work.rename(columns={'log_ts': 'Date', 'volume': 'Volume'})
+        df_wrk_plot = safe_numeric(df_wrk_plot, ['Volume'])
 
     with l:
-        render_chart_safely(df_wrk, 'Date', 'Volume', "Weekly Training Volume")
+        render_chart_safely(df_wrk_plot, 'Date', 'Volume', "Weekly Training Volume")
     with r:
-        render_chart_safely(df_w, 'Date', 'Weight', "Weight Progression")
+        render_chart_safely(df_w_plot, 'Date', 'Weight', "Weight Progression")
+
+def render_data_manager():
+    db = get_db()
+    st.header("🗂️ Data Manager")
+    st.caption("Review and delete individual entries across all logs.")
+
+    # 1. Workout Entries
+    with st.expander("🏋️ Workout Entries", expanded=False):
+        df = pd.DataFrame(db.fetch_workouts())
+        if not df.empty:
+            df['log_ts'] = pd.to_datetime(df['log_ts'], format='ISO8601')
+            df_display = df[['log_ts', 'exercise', 'weight', 'sets', 'reps', 'rpe', 'volume']].copy()
+            df_display = df_display.sort_values('log_ts', ascending=False).reset_index(drop=True)
+
+            event = st.dataframe(
+                df_display,
+                use_container_width=True,
+                hide_index=True,
+                on_select="rerun",
+                selection_mode="single-row",
+                key="select_workout"
+            )
+
+            selected_rows = event.selection.rows
+            if selected_rows:
+                selected_idx = selected_rows[0]
+                # Re-sort full df to match display order if needed, but display is already sorted and reset
+                # So we sort full df the same way to ensure iloc matches
+                df_full_sorted = df.sort_values('log_ts', ascending=False).reset_index(drop=True)
+                selected_entry = df_full_sorted.iloc[selected_idx]
+                
+                st.warning(
+                    f"Delete **{selected_entry['exercise']}** "
+                    f"logged on {selected_entry['log_ts'].strftime('%Y-%m-%d %H:%M')}?"
+                )
+                col1, col2 = st.columns([1, 6])
+                if col1.button("🗑️ Confirm Delete", key="confirm_del_workout", type="primary"):
+                    db.delete_workout_by_id(str(selected_entry['id']))
+                    st.success("Entry deleted.")
+                    st.rerun()
+                if col2.button("Cancel", key="cancel_del_workout"):
+                    st.rerun()
+        else:
+            st.info("No entries found.")
+
+    # 2. Movement Entries
+    with st.expander("🏃 Movement Entries", expanded=False):
+        df = pd.DataFrame(db.fetch_runs())
+        if not df.empty:
+            df['log_ts'] = pd.to_datetime(df['log_ts'], format='ISO8601')
+            df_display = df[['log_ts', 'category', 'distance', 'duration', 'pace', 'hr']].copy()
+            df_display = df_display.sort_values('log_ts', ascending=False).reset_index(drop=True)
+
+            event = st.dataframe(
+                df_display,
+                use_container_width=True,
+                hide_index=True,
+                on_select="rerun",
+                selection_mode="single-row",
+                key="select_run"
+            )
+
+            selected_rows = event.selection.rows
+            if selected_rows:
+                selected_idx = selected_rows[0]
+                df_full_sorted = df.sort_values('log_ts', ascending=False).reset_index(drop=True)
+                selected_entry = df_full_sorted.iloc[selected_idx]
+                
+                st.warning(
+                    f"Delete **{selected_entry['category']} {selected_entry['distance']}km** "
+                    f"logged on {selected_entry['log_ts'].strftime('%Y-%m-%d %H:%M')}?"
+                )
+                col1, col2 = st.columns([1, 6])
+                if col1.button("🗑️ Confirm Delete", key="confirm_del_run", type="primary"):
+                    db.delete_run_by_id(str(selected_entry['id']))
+                    st.success("Entry deleted.")
+                    st.rerun()
+                if col2.button("Cancel", key="cancel_del_run"):
+                    st.rerun()
+        else:
+            st.info("No entries found.")
+
+    # 3. Nutrition Entries
+    with st.expander("🍱 Nutrition Entries", expanded=False):
+        df = pd.DataFrame(db.fetch_nutrition())
+        if not df.empty:
+            df['log_ts'] = pd.to_datetime(df['log_ts'], format='ISO8601')
+            df_display = df[['log_ts', 'calories', 'protein_g', 'carbs_g', 'fat_g']].copy()
+            df_display = df_display.sort_values('log_ts', ascending=False).reset_index(drop=True)
+
+            event = st.dataframe(
+                df_display,
+                use_container_width=True,
+                hide_index=True,
+                on_select="rerun",
+                selection_mode="single-row",
+                key="select_nutrition"
+            )
+
+            selected_rows = event.selection.rows
+            if selected_rows:
+                selected_idx = selected_rows[0]
+                df_full_sorted = df.sort_values('log_ts', ascending=False).reset_index(drop=True)
+                selected_entry = df_full_sorted.iloc[selected_idx]
+                
+                st.warning(
+                    f"Delete entry of **{selected_entry['calories']} kcal** "
+                    f"logged on {selected_entry['log_ts'].strftime('%Y-%m-%d %H:%M')}?"
+                )
+                col1, col2 = st.columns([1, 6])
+                if col1.button("🗑️ Confirm Delete", key="confirm_del_nutrition", type="primary"):
+                    db.delete_nutrition_by_id(str(selected_entry['id']))
+                    st.success("Entry deleted.")
+                    st.rerun()
+                if col2.button("Cancel", key="cancel_del_nutrition"):
+                    st.rerun()
+        else:
+            st.info("No entries found.")
+
+    # 4. Weight Entries
+    with st.expander("⚖️ Weight Entries", expanded=False):
+        df = pd.DataFrame(db.fetch_weight())
+        if not df.empty:
+            df['log_ts'] = pd.to_datetime(df['log_ts'], format='ISO8601')
+            df_display = df[['log_ts', 'weight', 'notes']].copy()
+            df_display = df_display.sort_values('log_ts', ascending=False).reset_index(drop=True)
+
+            event = st.dataframe(
+                df_display,
+                use_container_width=True,
+                hide_index=True,
+                on_select="rerun",
+                selection_mode="single-row",
+                key="select_weight"
+            )
+
+            selected_rows = event.selection.rows
+            if selected_rows:
+                selected_idx = selected_rows[0]
+                df_full_sorted = df.sort_values('log_ts', ascending=False).reset_index(drop=True)
+                selected_entry = df_full_sorted.iloc[selected_idx]
+                
+                st.warning(
+                    f"Delete weight entry of **{selected_entry['weight']} kg** "
+                    f"logged on {selected_entry['log_ts'].strftime('%Y-%m-%d %H:%M')}?"
+                )
+                col1, col2 = st.columns([1, 6])
+                if col1.button("🗑️ Confirm Delete", key="confirm_del_weight", type="primary"):
+                    db.delete_weight_by_id(str(selected_entry['id']))
+                    st.success("Entry deleted.")
+                    st.rerun()
+                if col2.button("Cancel", key="cancel_del_weight"):
+                    st.rerun()
+        else:
+            st.info("No entries found.")

@@ -142,30 +142,57 @@ def render_workout_form():
 
     submitted = st.button("💾 Save Training Session")
 
+    # Step 1: on submit, check duplicate and set show_confirm flag
     if submitted:
-        log_ts = get_timestamp(l_date, l_time)
-        final_rows = []
-        for item in session_results:
-            if item["s"] > 0:
-                volume = item["w"] * item["s"] * item["r"] if item["type"] == "Heavy" else 0
-                final_rows.append({
-                    "log_ts": log_ts,
-                    "plan_name": selected_plan_name,
-                    "exercise": item["name"],
-                    "weight": item["w"],
-                    "sets": item["s"],
-                    "reps": item["r"],
-                    "rpe": item["rpe"],
-                    "volume": volume
-                })
-
-        if final_rows:
-            if db.save_workout(final_rows):
-                st.success(f"✅ Session saved: {len(final_rows)} exercises logged.")
-                db.clear_draft(form_key)
-                del st.session_state.work_draft_loaded
+        date_str = str(l_date)
+        dup_count = db.check_duplicate_workout(date_str)
+        if dup_count > 0:
+            st.session_state.workout_show_confirm = True
+            st.session_state.workout_pending_date = date_str
         else:
-            st.warning("No exercises with sets > 0. Nothing saved.")
+            # No duplicate — save directly
+            log_ts = get_timestamp(l_date, l_time)
+            final_rows = []
+            for item in session_results:
+                if item["s"] > 0:
+                    volume = item["w"] * item["s"] * item["r"] if item["type"] == "Heavy" else 0
+                    final_rows.append({
+                        "log_ts": log_ts,
+                        "plan_name": selected_plan_name,
+                        "exercise": item["name"],
+                        "weight": item["w"],
+                        "sets": item["s"],
+                        "reps": item["r"],
+                        "rpe": item["rpe"],
+                        "volume": volume
+                    })
+
+            if final_rows:
+                if db.save_workout(final_rows):
+                    st.success(f"✅ Session saved: {len(final_rows)} exercises logged.")
+                    db.clear_draft(form_key)
+                    st.session_state.pop("work_draft_loaded", None)
+            else:
+                st.warning("No exercises with sets > 0. Nothing saved.")
+
+    # Step 2: show confirmation UI OUTSIDE if submitted — persists across reruns
+    if st.session_state.get("workout_show_confirm"):
+        date_str = st.session_state.get("workout_pending_date", "")
+        st.warning(f"⚠️ Duplicate entries found on {date_str}.")
+        col1, col2, col3 = st.columns(3)
+        if col1.button("💾 Save Anyway", key="workout_save_anyway"):
+            st.session_state.workout_confirm_overwrite = True
+            st.session_state.pop("workout_show_confirm", None)
+            st.rerun()
+        if col2.button("🔄 Overwrite (delete old first)", key="workout_overwrite"):
+            st.session_state.workout_confirm_overwrite = True
+            st.session_state.workout_do_overwrite = True
+            st.session_state.pop("workout_show_confirm", None)
+            st.rerun()
+        if col3.button("❌ Cancel", key="workout_cancel"):
+            st.session_state.pop("workout_show_confirm", None)
+            st.session_state.pop("workout_pending_date", None)
+            st.rerun()
 
 def render_running_form():
     db = get_db()
@@ -213,33 +240,59 @@ def render_running_form():
 
     submitted = st.button("💾 Log Movement")
 
+    # Step 1: on submit, check duplicate and set show_confirm flag
     if submitted:
-        log_ts = get_timestamp(l_date, l_time)
-        try:
-            p = dur.split(":")
-            mins, secs = (int(p[0]), int(p[1])) if len(p) == 2 else (0, 0)
-            tot_s = mins * 60 + secs
+        date_str = str(l_date)
+        dup_count = db.check_duplicate_run(date_str)
+        if dup_count > 0:
+            st.session_state.run_show_confirm = True
+            st.session_state.run_pending_date = date_str
+        else:
+            log_ts = get_timestamp(l_date, l_time)
+            try:
+                p = dur.split(":")
+                mins, secs = (int(p[0]), int(p[1])) if len(p) == 2 else (0, 0)
+                tot_s = mins * 60 + secs
 
-            pace_s = "0:00"
-            if dist > 0:
-                p_s = tot_s / dist
-                pace_s = f"{int(p_s // 60)}:{int(p_s % 60):02d}"
+                pace_s = "0:00"
+                if dist > 0:
+                    p_s = tot_s / dist
+                    pace_s = f"{int(p_s // 60)}:{int(p_s % 60):02d}"
 
-            run_data = {
-                "log_ts": log_ts,
-                "distance": dist,
-                "duration": dur,
-                "pace": pace_s,
-                "hr": hr,
-                "hrr": hrr,
-                "category": cat
-            }
-            if db.save_run(run_data):
-                st.success("✅ Movement session logged.")
-                db.clear_draft(form_key)
-                del st.session_state.run_draft_loaded
-        except Exception:
-            st.error("Use MM:SS format for duration.")
+                run_data = {
+                    "log_ts": log_ts,
+                    "distance": dist,
+                    "duration": dur,
+                    "pace": pace_s,
+                    "hr": hr,
+                    "hrr": hrr,
+                    "category": cat
+                }
+                if db.save_run(run_data):
+                    st.success("✅ Movement session logged.")
+                    db.clear_draft(form_key)
+                    st.session_state.pop("run_draft_loaded", None)
+            except Exception:
+                st.error("Use MM:SS format for duration.")
+
+    # Step 2: show confirmation UI OUTSIDE if submitted
+    if st.session_state.get("run_show_confirm"):
+        date_str = st.session_state.get("run_pending_date", "")
+        st.warning(f"⚠️ Duplicate entries found on {date_str}.")
+        col1, col2, col3 = st.columns(3)
+        if col1.button("💾 Save Anyway", key="run_save_anyway"):
+            st.session_state.run_confirm_overwrite = True
+            st.session_state.pop("run_show_confirm", None)
+            st.rerun()
+        if col2.button("🔄 Overwrite (delete old first)", key="run_overwrite"):
+            st.session_state.run_confirm_overwrite = True
+            st.session_state.run_do_overwrite = True
+            st.session_state.pop("run_show_confirm", None)
+            st.rerun()
+        if col3.button("❌ Cancel", key="run_cancel"):
+            st.session_state.pop("run_show_confirm", None)
+            st.session_state.pop("run_pending_date", None)
+            st.rerun()
 
 def render_biohack_form():
     db = get_db()
@@ -298,23 +351,49 @@ def render_biohack_form():
 
     submitted = st.button("✅ Save Nutrition")
 
+    # Step 1: on submit
     if submitted:
-        log_ts = get_timestamp(l_date, l_time)
-        nut_data = {
-            "log_ts": log_ts,
-            "calories": cal,
-            "protein_g": p_g,
-            "carbs_g": c_g,
-            "fat_g": f_g,
-            "creatine": crea,
-            "protein_powder": prot,
-            "multivitamin": vit,
-            "omega3": omg
-        }
-        if db.save_nutrition(nut_data):
-            st.success("✅ Nutrition data saved.")
-            db.clear_draft(form_key)
-            del st.session_state.nut_draft_loaded
+        date_str = str(l_date)
+        dup_count = db.check_duplicate_nutrition(date_str)
+        if dup_count > 0:
+            st.session_state.nut_show_confirm = True
+            st.session_state.nut_pending_date = date_str
+        else:
+            log_ts = get_timestamp(l_date, l_time)
+            nut_data = {
+                "log_ts": log_ts,
+                "calories": cal,
+                "protein_g": p_g,
+                "carbs_g": c_g,
+                "fat_g": f_g,
+                "creatine": crea,
+                "protein_powder": prot,
+                "multivitamin": vit,
+                "omega3": omg
+            }
+            if db.save_nutrition(nut_data):
+                st.success("✅ Nutrition data saved.")
+                db.clear_draft(form_key)
+                st.session_state.pop("nut_draft_loaded", None)
+
+    # Step 2: show confirmation UI OUTSIDE if submitted
+    if st.session_state.get("nut_show_confirm"):
+        date_str = st.session_state.get("nut_pending_date", "")
+        st.warning(f"⚠️ Duplicate entries found on {date_str}.")
+        col1, col2, col3 = st.columns(3)
+        if col1.button("💾 Save Anyway", key="nut_save_anyway"):
+            st.session_state.nut_confirm_overwrite = True
+            st.session_state.pop("nut_show_confirm", None)
+            st.rerun()
+        if col2.button("🔄 Overwrite (delete old first)", key="nut_overwrite"):
+            st.session_state.nut_confirm_overwrite = True
+            st.session_state.nut_do_overwrite = True
+            st.session_state.pop("nut_show_confirm", None)
+            st.rerun()
+        if col3.button("❌ Cancel", key="nut_cancel"):
+            st.session_state.pop("nut_show_confirm", None)
+            st.session_state.pop("nut_pending_date", None)
+            st.rerun()
 
 def render_weight_form():
     db = get_db()
@@ -349,14 +428,40 @@ def render_weight_form():
 
     submitted = st.button("💾 Log Weight")
 
+    # Step 1: on submit
     if submitted:
-        log_ts = get_timestamp(l_date, l_time)
-        weight_data = {
-            "log_ts": log_ts,
-            "weight": weight_val,
-            "notes": notes
-        }
-        if db.save_weight(weight_data):
-            st.success("✅ Weight logged.")
-            db.clear_draft(form_key)
-            del st.session_state.weight_draft_loaded
+        date_str = str(l_date)
+        dup_count = db.check_duplicate_weight(date_str)
+        if dup_count > 0:
+            st.session_state.weight_show_confirm = True
+            st.session_state.weight_pending_date = date_str
+        else:
+            log_ts = get_timestamp(l_date, l_time)
+            weight_data = {
+                "log_ts": log_ts,
+                "weight": weight_val,
+                "notes": notes
+            }
+            if db.save_weight(weight_data):
+                st.success("✅ Weight logged.")
+                db.clear_draft(form_key)
+                st.session_state.pop("weight_draft_loaded", None)
+
+    # Step 2: show confirmation UI OUTSIDE if submitted
+    if st.session_state.get("weight_show_confirm"):
+        date_str = st.session_state.get("weight_pending_date", "")
+        st.warning(f"⚠️ Duplicate entries found on {date_str}.")
+        col1, col2, col3 = st.columns(3)
+        if col1.button("💾 Save Anyway", key="weight_save_anyway"):
+            st.session_state.weight_confirm_overwrite = True
+            st.session_state.pop("weight_show_confirm", None)
+            st.rerun()
+        if col2.button("🔄 Overwrite (delete old first)", key="weight_overwrite"):
+            st.session_state.weight_confirm_overwrite = True
+            st.session_state.weight_do_overwrite = True
+            st.session_state.pop("weight_show_confirm", None)
+            st.rerun()
+        if col3.button("❌ Cancel", key="weight_cancel"):
+            st.session_state.pop("weight_show_confirm", None)
+            st.session_state.pop("weight_pending_date", None)
+            st.rerun()
