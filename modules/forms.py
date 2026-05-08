@@ -305,3 +305,48 @@ def render_biohack_form():
             st.success("✅ Nutrition data saved.")
             db.clear_draft(form_key)
             del st.session_state.nut_draft_loaded
+
+def render_weight_form():
+    db = get_db()
+    st.subheader("⚖️ Weight Log")
+    form_key = f"draft_weight_{st.session_state.get('user_id', 'default')}"
+
+    if "weight_draft_loaded" not in st.session_state:
+        draft = db.load_draft(form_key) or {}
+        st.session_state.weight_date = datetime.strptime(draft.get("date", datetime.now().strftime("%Y-%m-%d")), "%Y-%m-%d").date()
+        st.session_state.weight_time = datetime.strptime(draft.get("time", datetime.now().strftime("%H:%M:%S")), "%H:%M:%S").time()
+        st.session_state.weight_kg = draft.get("weight_kg", 0.0)
+        st.session_state.weight_notes = draft.get("weight_notes", "")
+        st.session_state.weight_draft_loaded = True
+
+    def save_weight_draft():
+        data = {
+            "date": str(st.session_state.weight_date),
+            "time": st.session_state.weight_time.strftime("%H:%M:%S"),
+            "weight_kg": st.session_state.weight_kg,
+            "weight_notes": st.session_state.weight_notes
+        }
+        db.save_draft(form_key, data)
+
+    col_d, col_t = st.columns(2)
+    with col_d:
+        l_date = st.date_input("Date", key="weight_date", on_change=save_weight_draft)
+    with col_t:
+        l_time = st.time_input("Time", key="weight_time", on_change=save_weight_draft)
+
+    weight_val = st.number_input("Weight (kg)", min_value=0.0, step=0.1, key="weight_kg", on_change=save_weight_draft)
+    notes = st.text_input("Notes (optional)", key="weight_notes", on_change=save_weight_draft)
+
+    submitted = st.button("💾 Log Weight")
+
+    if submitted:
+        log_ts = get_timestamp(l_date, l_time)
+        weight_data = {
+            "log_ts": log_ts,
+            "weight": weight_val,
+            "notes": notes
+        }
+        if db.save_weight(weight_data):
+            st.success("✅ Weight logged.")
+            db.clear_draft(form_key)
+            del st.session_state.weight_draft_loaded

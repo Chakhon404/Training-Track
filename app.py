@@ -1,5 +1,5 @@
 import streamlit as st
-from modules.forms import render_workout_form, render_running_form, render_biohack_form, render_plan_builder
+from modules.forms import render_workout_form, render_running_form, render_biohack_form, render_plan_builder, render_weight_form
 from modules.analytics import render_analytics, render_overview, render_nutrition_analysis
 from modules.database import get_db
 
@@ -65,7 +65,7 @@ def main():
         st.stop()
 
     # --- NAVIGATION ---
-    tabs = st.tabs(["🏠 Overview", "🏋️ Training", "🏃 Movement", "📉 Analytics", "🍱 Nutrition"])
+    tabs = st.tabs(["🏠 Overview", "🏋️ Training", "🏃 Movement", "⚖️ Weight", "📉 Analytics", "🍱 Nutrition"])
 
     with tabs[0]:
         render_overview()
@@ -80,9 +80,12 @@ def main():
         render_running_form()
 
     with tabs[3]:
-        render_analytics()
+        render_weight_form()
 
     with tabs[4]:
+        render_analytics()
+
+    with tabs[5]:
         render_nutrition_analysis()
         st.divider()
         render_biohack_form()

@@ -68,6 +68,15 @@ class TrainingDB:
             st.error(f"Failed to save run: {e}")
             return False
 
+    def fetch_runs(self):
+        if not self.is_connected(): return []
+        try:
+            response = self.supabase.table("running").select("*").execute()
+            return response.data
+        except Exception as e:
+            st.error(f"Failed to fetch runs: {e}")
+            return []
+
     def save_nutrition(self, nutrition_data):
         if not self.is_connected(): return False
         try:
