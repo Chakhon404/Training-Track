@@ -1,5 +1,5 @@
 import streamlit as st
-from modules.forms import render_workout_form, render_running_form, render_biohack_form, render_plan_builder, render_weight_form
+from modules.forms import render_workout_form, render_running_form, render_biohack_form, render_plan_builder, render_weight_form, render_profile_form
 from modules.analytics import render_analytics, render_overview, render_nutrition_analysis, render_data_manager
 from modules.database import get_db
 
@@ -56,6 +56,7 @@ def _handle_pending_confirmations(db):
 
         if selected_plan_obj and work_date and work_time:
             log_ts = f"{work_date} {work_time.strftime('%H:%M:%S')}"
+            bodyweight_kg = float(st.session_state.get("bodyweight_kg", 0.0))
             final_rows = []
             for i, ex in enumerate(selected_plan_obj["exercises"]):
                 ex_t = ex["type"]
@@ -64,7 +65,10 @@ def _handle_pending_confirmations(db):
                 w = float(st.session_state.get(f"work_w_{i}", 0.0)) if ex_t == "Heavy" else 0.0
                 rpe = float(st.session_state.get(f"work_rpe_{i}", 7.0))
                 if s > 0:
-                    volume = w * s * r if ex_t == "Heavy" else 0
+                    if ex_t == "Bodyweight":
+                        volume = bodyweight_kg * s * r
+                    else:
+                        volume = w * s * r
                     final_rows.append({
                         "log_ts": log_ts,
                         "plan_name": curr_plan,
@@ -216,12 +220,18 @@ def main():
         st.divider()
         if db.is_connected():
             show_plan_builder = st.toggle("🛠️ Open Plan Builder", value=False)
+            show_profile = st.toggle("👤 Edit Profile & Goals", value=False)
         else:
             show_plan_builder = False
+            show_profile = False
 
     # --- APP HEADER ---
     st.title("🎯 Training & Health Track")
     st.markdown("---")
+
+    if show_profile:
+        render_profile_form()
+        st.stop()
 
     if show_plan_builder:
         render_plan_builder()
