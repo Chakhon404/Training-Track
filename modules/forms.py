@@ -102,6 +102,19 @@ def render_workout_form():
     selected_plan_name = st.selectbox("Select Training Plan", plan_names, key="work_plan_name", on_change=save_workout_draft)
     selected_plan = next(p for p in plans if p['name'] == selected_plan_name)
 
+    # Fetch latest weight for volume calculation
+    latest_weight_entry = db.fetch_weight()
+    if latest_weight_entry:
+        import pandas as pd
+        df_w = pd.DataFrame(latest_weight_entry)
+        df_w['log_ts'] = pd.to_datetime(df_w['log_ts'], format='ISO8601')
+        bodyweight_kg = float(df_w.sort_values('log_ts').iloc[-1]['weight'])
+    else:
+        profile = db.fetch_profile() or {}
+        bodyweight_kg = float(profile.get('weight_kg') or 0.0)
+    
+    st.session_state["bodyweight_kg"] = bodyweight_kg
+
     col_d, col_t = st.columns(2)
     with col_d:
         l_date = st.date_input("Date", key="work_date", on_change=save_workout_draft)
@@ -155,7 +168,10 @@ def render_workout_form():
             final_rows = []
             for item in session_results:
                 if item["s"] > 0:
-                    volume = item["w"] * item["s"] * item["r"] if item["type"] == "Heavy" else 0
+                    if item["type"] == "Bodyweight":
+                        volume = bodyweight_kg * item["s"] * item["r"]
+                    else:
+                        volume = item["w"] * item["s"] * item["r"]
                     final_rows.append({
                         "log_ts": log_ts,
                         "plan_name": selected_plan_name,
