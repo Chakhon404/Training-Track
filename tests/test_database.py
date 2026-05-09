@@ -95,3 +95,21 @@ def test_error_handling(mock_secrets, mock_create_client):
         plans = db.fetch_plans()
         assert plans == []
         mock_error.assert_called()
+
+@patch('modules.database.create_client')
+@patch('streamlit.secrets')
+def test_fetch_profile(mock_secrets, mock_create_client):
+    from modules.database import TrainingDB
+    mock_secrets.__getitem__.side_effect = lambda key: "dummy"
+    mock_supabase = MagicMock()
+    mock_create_client.return_value = mock_supabase
+    
+    mock_execute = MagicMock()
+    mock_execute.data = [{"id": 1, "name": "User"}]
+    mock_supabase.table.return_value.select.return_value.limit.return_value.execute.return_value = mock_execute
+    
+    db = TrainingDB()
+    profile = db.fetch_profile()
+    
+    assert profile == {"id": 1, "name": "User"}
+    mock_supabase.table.assert_called_with("user_profile")

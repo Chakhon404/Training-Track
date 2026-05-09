@@ -303,6 +303,17 @@ class TrainingDB:
         except Exception:
             return None
 
+    def fetch_profile(self) -> dict | None:
+        """Returns the single user profile row, or None if not set up yet."""
+        if not self.is_connected(): return None
+        try:
+            response = self.supabase.table("user_profile").select("*").limit(1).execute()
+            if response.data:
+                return response.data[0]
+            return None
+        except Exception:
+            return None
+
 @st.cache_resource
 def get_db():
     return TrainingDB()
