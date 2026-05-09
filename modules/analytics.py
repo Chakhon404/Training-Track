@@ -94,7 +94,7 @@ def render_analytics():
         st.subheader("Weight Prediction")
         with st.form("weight_form"):
             today_w = st.number_input("Current Weight", min_value=30.0, step=0.1)
-            target_w = st.number_input("Target Weight", value=GOAL_WEIGHT, step=0.1)
+            target_w = st.number_input("Target Weight", value=float(GOAL_WEIGHT), step=0.1)
             w_date = st.date_input("Date", datetime.now().date())
             notes = st.text_input("Notes")
             if st.form_submit_button("Log & Predict"):

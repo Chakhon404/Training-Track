@@ -113,3 +113,44 @@ def test_fetch_profile(mock_secrets, mock_create_client):
     
     assert profile == {"id": 1, "name": "User"}
     mock_supabase.table.assert_called_with("user_profile")
+
+@patch('modules.database.create_client')
+@patch('streamlit.secrets')
+def test_save_profile_insert(mock_secrets, mock_create_client):
+    from modules.database import TrainingDB
+    mock_secrets.__getitem__.side_effect = lambda key: "dummy"
+    mock_supabase = MagicMock()
+    mock_create_client.return_value = mock_supabase
+    
+    # Mock fetch_profile returning None (insert case)
+    mock_fetch_execute = MagicMock()
+    mock_fetch_execute.data = []
+    mock_supabase.table.return_value.select.return_value.limit.return_value.execute.return_value = mock_fetch_execute
+    
+    db = TrainingDB()
+    profile_data = {"name": "New User"}
+    result = db.save_profile(profile_data)
+    
+    assert result is True
+    mock_supabase.table.return_value.insert.assert_called_with(profile_data)
+
+@patch('modules.database.create_client')
+@patch('streamlit.secrets')
+def test_save_profile_update(mock_secrets, mock_create_client):
+    from modules.database import TrainingDB
+    mock_secrets.__getitem__.side_effect = lambda key: "dummy"
+    mock_supabase = MagicMock()
+    mock_create_client.return_value = mock_supabase
+    
+    # Mock fetch_profile returning existing profile (update case)
+    mock_fetch_execute = MagicMock()
+    mock_fetch_execute.data = [{"id": 1, "name": "Old User"}]
+    mock_supabase.table.return_value.select.return_value.limit.return_value.execute.return_value = mock_fetch_execute
+    
+    db = TrainingDB()
+    profile_data = {"name": "Updated User"}
+    result = db.save_profile(profile_data)
+    
+    assert result is True
+    mock_supabase.table.return_value.update.assert_called_with(profile_data)
+    mock_supabase.table.return_value.update.return_value.eq.assert_called_with("id", 1)

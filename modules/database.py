@@ -314,6 +314,22 @@ class TrainingDB:
         except Exception:
             return None
 
+    def save_profile(self, profile_data: dict) -> bool:
+        """Upserts the user profile. If a row exists, update it. Otherwise insert."""
+        if not self.is_connected(): return False
+        try:
+            existing = self.fetch_profile()
+            if existing:
+                self.supabase.table("user_profile")\
+                    .update(profile_data)\
+                    .eq("id", existing["id"])\
+                    .execute()
+            else:
+                self.supabase.table("user_profile").insert(profile_data).execute()
+            return True
+        except Exception:
+            return False
+
 @st.cache_resource
 def get_db():
     return TrainingDB()
