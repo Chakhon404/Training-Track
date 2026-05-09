@@ -1,6 +1,6 @@
 import streamlit as st
 from modules.forms import render_workout_form, render_running_form, render_biohack_form, render_plan_builder, render_weight_form, render_profile_form
-from modules.analytics import render_analytics, render_overview, render_nutrition_analysis, render_data_manager
+from modules.analytics import render_analytics, render_overview, render_nutrition_analysis, render_data_manager, render_export_section
 from modules.database import get_db
 
 # --- PAGE CONFIG ---
@@ -256,6 +256,8 @@ def main():
         render_analytics()
         st.divider()
         render_weight_form()
+        st.divider()
+        render_export_section()
 
     with tabs[4]:
         render_nutrition_analysis()

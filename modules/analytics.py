@@ -78,6 +78,9 @@ def predict_target_date(df_weights, target=64.0):
 def render_analytics():
     st.title("📉 Analytics")
     db = get_db()
+    profile = db.fetch_profile() or {}
+    GOAL_WEIGHT = profile.get("goal_weight_kg") or 64.0
+
     c1, c2 = st.columns(2)
     
     with st.spinner("Fetching data..."):
@@ -91,7 +94,7 @@ def render_analytics():
         st.subheader("Weight Prediction")
         with st.form("weight_form"):
             today_w = st.number_input("Current Weight", min_value=30.0, step=0.1)
-            target_w = st.number_input("Target Weight", value=64.0, step=0.1)
+            target_w = st.number_input("Target Weight", value=GOAL_WEIGHT, step=0.1)
             w_date = st.date_input("Date", datetime.now().date())
             notes = st.text_input("Notes")
             if st.form_submit_button("Log & Predict"):
@@ -113,7 +116,18 @@ def render_analytics():
 def render_nutrition_analysis():
     st.subheader("🥦 Nutrition & Energy")
     db = get_db()
-    GOALS = {"Calories": 2500, "Protein": 160, "Carbs": 300, "Fat": 70}
+    profile = db.fetch_profile() or {}
+    GOAL_CALORIES = profile.get("goal_calories") or 2500
+    GOAL_PROTEIN = profile.get("goal_protein_g") or 150
+    GOAL_CARBS = profile.get("goal_carbs_g") or 300
+    GOAL_FAT = profile.get("goal_fat_g") or 70
+
+    GOALS = {
+        "Calories": GOAL_CALORIES,
+        "Protein": GOAL_PROTEIN,
+        "Carbs": GOAL_CARBS,
+        "Fat": GOAL_FAT
+    }
     
     nutrition_data = db.fetch_nutrition()
     if not nutrition_data:
@@ -174,6 +188,10 @@ def render_nutrition_analysis():
 def render_overview():
     db = get_db()
     today = datetime.now().date()
+    profile = db.fetch_profile() or {}
+    GOAL_CALORIES = profile.get("goal_calories") or 2500
+    GOAL_PROTEIN = profile.get("goal_protein_g") or 150
+    GOAL_WEIGHT = profile.get("goal_weight_kg") or None
     
     with st.spinner("Loading Today's Summary..."):
         workouts = db.fetch_workouts()
@@ -201,6 +219,25 @@ def render_overview():
     # Section A — Header
     st.header("🏠 Daily Overview")
     st.caption(f"Today: {today.strftime('%A, %d %B %Y')}")
+
+    if profile:
+        with st.container(border=True):
+            st.markdown("### 👤 Profile Summary")
+            pc1, pc2, pc3, pc4 = st.columns(4)
+            pc1.metric("Weight", f"{profile.get('weight_kg', 'N/A')} kg")
+            pc2.metric("Height", f"{profile.get('height_cm', 'N/A')} cm")
+            pc3.metric("Body Fat", f"{profile.get('body_fat_pct', 'N/A')}%")
+            
+            goal_w = profile.get('goal_weight_kg')
+            curr_w = profile.get('weight_kg')
+            if goal_w and curr_w:
+                diff = round(curr_w - goal_w, 1)
+                pc4.metric("To Goal", f"{abs(diff)} kg", delta=f"{-diff:+.1f} kg")
+            else:
+                pc4.metric("To Goal", "N/A")
+                
+            if profile.get("supplements"):
+                st.caption("💊 " + " · ".join(profile["supplements"]))
 
     # Section B — Activity Status Row
     c1, c2, c3, c4 = st.columns(4)
@@ -231,8 +268,7 @@ def render_overview():
     with c4:
         if not nut_today.empty:
             cal = int(nut_today.iloc[-1]['calories'])
-            goal_cal = 2500 # TODO: move to user_profiles table
-            st.metric("🍱 Calories", f"{cal} kcal", delta=f"{cal - goal_cal} vs Goal")
+            st.metric("🍱 Calories", f"{cal} kcal", delta=f"{cal - GOAL_CALORIES} vs Goal")
         else:
             st.metric("🍱 Calories", "Not logged")
 
@@ -247,8 +283,7 @@ def render_overview():
             m1, m2, m3 = st.columns(3)
             with m1:
                 p = latest_nut.get('protein_g', 0)
-                p_goal = 150 # TODO: move to user_profiles table
-                st.metric("Protein", f"{p}g", delta=f"{p - p_goal}g vs Goal")
+                st.metric("Protein", f"{p}g", delta=f"{p - GOAL_PROTEIN}g vs Goal")
             with m2:
                 st.metric("Carbs", f"{latest_nut.get('carbs_g', 0)}g")
             with m3:
@@ -494,3 +529,48 @@ def render_data_manager():
                     st.rerun()
         else:
             st.info("No entries found.")
+
+def render_export_section():
+    db = get_db()
+    st.subheader("📥 Export Data")
+
+    col1, col2, col3 = st.columns(3)
+
+    # Workouts
+    workouts = db.fetch_workouts()
+    if workouts:
+        df = pd.DataFrame(workouts).drop(columns=["id"], errors="ignore")
+        csv = df.to_csv(index=False).encode("utf-8")
+        col1.download_button(
+            "⬇️ Workouts CSV",
+            data=csv,
+            file_name=f"workouts_{datetime.now().strftime('%Y%m%d')}.csv",
+            mime="text/csv",
+            use_container_width=True
+        )
+
+    # Nutrition
+    nutrition = db.fetch_nutrition()
+    if nutrition:
+        df = pd.DataFrame(nutrition).drop(columns=["id"], errors="ignore")
+        csv = df.to_csv(index=False).encode("utf-8")
+        col2.download_button(
+            "⬇️ Nutrition CSV",
+            data=csv,
+            file_name=f"nutrition_{datetime.now().strftime('%Y%m%d')}.csv",
+            mime="text/csv",
+            use_container_width=True
+        )
+
+    # Weight
+    weight = db.fetch_weight()
+    if weight:
+        df = pd.DataFrame(weight).drop(columns=["id"], errors="ignore")
+        csv = df.to_csv(index=False).encode("utf-8")
+        col3.download_button(
+            "⬇️ Weight CSV",
+            data=csv,
+            file_name=f"weight_{datetime.now().strftime('%Y%m%d')}.csv",
+            mime="text/csv",
+            use_container_width=True
+        )
