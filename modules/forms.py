@@ -465,3 +465,96 @@ def render_weight_form():
             st.session_state.pop("weight_show_confirm", None)
             st.session_state.pop("weight_pending_date", None)
             st.rerun()
+
+def render_profile_form():
+    db = get_db()
+    st.header("👤 User Profile & Goals")
+    st.caption("Your physical stats and nutrition goals. Used across all tabs.")
+
+    profile = db.fetch_profile() or {}
+
+    with st.form("profile_form"):
+        st.markdown("### 📏 Physical Stats")
+        c1, c2, c3 = st.columns(3)
+        weight_kg = c1.number_input(
+            "Current Weight (kg)", min_value=0.0, step=0.1,
+            value=float(profile.get("weight_kg") or 0.0)
+        )
+        height_cm = c2.number_input(
+            "Height (cm)", min_value=0.0, step=0.5,
+            value=float(profile.get("height_cm") or 0.0)
+        )
+        body_fat = c3.number_input(
+            "Body Fat (%)", min_value=0.0, max_value=100.0, step=0.1,
+            value=float(profile.get("body_fat_pct") or 0.0)
+        )
+
+        # Auto-calculate BMI and lean mass
+        if height_cm > 0 and weight_kg > 0:
+            bmi = weight_kg / ((height_cm / 100) ** 2)
+            lean_mass = weight_kg * (1 - body_fat / 100) if body_fat > 0 else None
+            mc1, mc2 = st.columns(2)
+            mc1.metric("BMI", f"{bmi:.1f}")
+            if lean_mass:
+                mc2.metric("Lean Mass (kg)", f"{lean_mass:.1f}")
+
+        st.divider()
+        st.markdown("### 🎯 Goals")
+        g1, g2 = st.columns(2)
+        goal_weight = g1.number_input(
+            "Target Weight (kg)", min_value=0.0, step=0.1,
+            value=float(profile.get("goal_weight_kg") or 0.0)
+        )
+
+        st.markdown("#### Daily Nutrition Goals")
+        n1, n2, n3, n4 = st.columns(4)
+        goal_cal = n1.number_input(
+            "Calories (kcal)", min_value=0, step=50,
+            value=int(profile.get("goal_calories") or 2500)
+        )
+        goal_prot = n2.number_input(
+            "Protein (g)", min_value=0, step=1,
+            value=int(profile.get("goal_protein_g") or 150)
+        )
+        goal_carbs = n3.number_input(
+            "Carbs (g)", min_value=0, step=1,
+            value=int(profile.get("goal_carbs_g") or 300)
+        )
+        goal_fat = n4.number_input(
+            "Fat (g)", min_value=0, step=1,
+            value=int(profile.get("goal_fat_g") or 70)
+        )
+
+        st.divider()
+        st.markdown("### 💊 Supplements")
+        sup_options = ["Creatine", "Protein Powder", "Multi-Vitamin", "Omega-3", "Vitamin D", "Magnesium", "ZMA", "Pre-workout"]
+        current_sups = profile.get("supplements") or []
+        supplements = st.multiselect(
+            "Supplements you take regularly",
+            options=sup_options,
+            default=[s for s in current_sups if s in sup_options]
+        )
+
+        st.divider()
+        notes = st.text_area(
+            "Notes", 
+            value=profile.get("notes") or "",
+            placeholder="e.g. cutting phase, injured left shoulder..."
+        )
+
+        if st.form_submit_button("💾 Save Profile"):
+            profile_data = {
+                "weight_kg": weight_kg,
+                "height_cm": height_cm,
+                "body_fat_pct": body_fat,
+                "goal_weight_kg": goal_weight,
+                "goal_calories": goal_cal,
+                "goal_protein_g": goal_prot,
+                "goal_carbs_g": goal_carbs,
+                "goal_fat_g": goal_fat,
+                "supplements": supplements,
+                "notes": notes
+            }
+            if db.save_profile(profile_data):
+                st.success("✅ Profile saved.")
+                st.rerun()
