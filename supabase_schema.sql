@@ -71,3 +71,34 @@ $$ LANGUAGE plpgsql;
 CREATE TRIGGER drafts_updated_at
 BEFORE UPDATE ON drafts
 FOR EACH ROW EXECUTE FUNCTION update_updated_at();
+
+-- USER PROFILE TABLE
+CREATE TABLE user_profile (
+  id UUID PRIMARY KEY DEFAULT uuid_generate_v4(),
+  weight_kg FLOAT,
+  height_cm FLOAT,
+  body_fat_pct FLOAT,
+  goal_weight_kg FLOAT,
+  goal_calories INT,
+  goal_protein_g INT,
+  goal_carbs_g INT,
+  goal_fat_g INT,
+  supplements JSONB DEFAULT '[]',
+  notes TEXT,
+  updated_at TIMESTAMP DEFAULT now()
+);
+
+ALTER TABLE user_profile ENABLE ROW LEVEL SECURITY;
+CREATE POLICY "allow all" ON user_profile USING (true) WITH CHECK (true);
+
+CREATE OR REPLACE FUNCTION update_user_profile_updated_at()
+RETURNS TRIGGER AS $$
+BEGIN
+  NEW.updated_at = now();
+  RETURN NEW;
+END;
+$$ LANGUAGE plpgsql;
+
+CREATE TRIGGER user_profile_updated_at
+BEFORE UPDATE ON user_profile
+FOR EACH ROW EXECUTE FUNCTION update_user_profile_updated_at();
