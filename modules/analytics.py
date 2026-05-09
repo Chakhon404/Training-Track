@@ -310,7 +310,7 @@ def render_overview():
             st.dataframe(
                 work_today[['exercise', 'weight', 'sets', 'reps', 'volume', 'rpe']], 
                 hide_index=True,
-                use_container_width=True
+                width='stretch'
             )
     else:
         st.info("🏋️ No training logged today.")
@@ -390,7 +390,7 @@ def render_data_manager():
 
             event = st.dataframe(
                 df_display,
-                use_container_width=True,
+                width='stretch',
                 hide_index=True,
                 on_select="rerun",
                 selection_mode="single-row",
@@ -429,7 +429,7 @@ def render_data_manager():
 
             event = st.dataframe(
                 df_display,
-                use_container_width=True,
+                width='stretch',
                 hide_index=True,
                 on_select="rerun",
                 selection_mode="single-row",
@@ -466,7 +466,7 @@ def render_data_manager():
 
             event = st.dataframe(
                 df_display,
-                use_container_width=True,
+                width='stretch',
                 hide_index=True,
                 on_select="rerun",
                 selection_mode="single-row",
@@ -503,7 +503,7 @@ def render_data_manager():
 
             event = st.dataframe(
                 df_display,
-                use_container_width=True,
+                width='stretch',
                 hide_index=True,
                 on_select="rerun",
                 selection_mode="single-row",
@@ -546,7 +546,7 @@ def render_export_section():
             data=csv,
             file_name=f"workouts_{datetime.now().strftime('%Y%m%d')}.csv",
             mime="text/csv",
-            use_container_width=True
+            width='stretch'
         )
 
     # Nutrition
@@ -559,7 +559,7 @@ def render_export_section():
             data=csv,
             file_name=f"nutrition_{datetime.now().strftime('%Y%m%d')}.csv",
             mime="text/csv",
-            use_container_width=True
+            width='stretch'
         )
 
     # Weight
@@ -572,5 +572,5 @@ def render_export_section():
             data=csv,
             file_name=f"weight_{datetime.now().strftime('%Y%m%d')}.csv",
             mime="text/csv",
-            use_container_width=True
+            width='stretch'
         )
