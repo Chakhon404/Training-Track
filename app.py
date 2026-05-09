@@ -12,16 +12,22 @@ st.set_page_config(
 )
 
 def check_password():
-    """Returns True if the user had the correct password."""
-    if "password_correct" not in st.session_state:
-        st.session_state["password_correct"] = False
-
-    if st.session_state["password_correct"]:
+    """Returns True if the user is authenticated via token or password."""
+    if st.session_state.get("password_correct"):
         return True
 
+    # Auto-login via URL token
+    token = st.query_params.get("token", "")
+    if token and token == st.secrets.get("app_token", ""):
+        st.session_state["password_correct"] = True
+        return True
+
+    # Fallback: manual password login
     st.title("🔐 Secure Access")
-    pwd = st.text_input("Access Key", type="password")
-    if st.button("Unlock Dashboard"):
+    with st.form("login_form"):
+        pwd = st.text_input("Access Key", type="password")
+        submitted = st.form_submit_button("Unlock Dashboard")
+    if submitted:
         if pwd == st.secrets["app_password"]:
             st.session_state["password_correct"] = True
             st.rerun()
