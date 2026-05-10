@@ -1,8 +1,17 @@
+# UI & Core
 streamlit>=1.30.0
 pandas>=2.0.0
 numpy>=1.24.0
+
+# Database & API
 supabase
-garminconnect
+requests
+python-dotenv
+
+# Analytics & Visualization
+plotly
+
+# Testing
 pytest
 pytest-mock
-garth
+pytest-asyncio

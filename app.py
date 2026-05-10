@@ -2,7 +2,6 @@ import streamlit as st
 from modules.forms import render_workout_form, render_running_form, render_biohack_form, render_plan_builder, render_weight_form, render_profile_form
 from modules.analytics import render_analytics, render_overview, render_nutrition_analysis, render_data_manager, render_export_section, render_wellness
 from modules.database import get_db
-from garmin_sync import sync_garmin
 from datetime import date, datetime, timedelta
 
 # --- PAGE CONFIG ---
@@ -223,49 +222,6 @@ def main():
             st.cache_data.clear()
             st.rerun()
             
-        st.divider()
-        st.markdown("**🏃 Garmin Sync**")
-        sync_date = st.date_input(
-            "Sync date",
-            value=date.today() - timedelta(days=1),
-            key="garmin_sync_date"
-        )
-        st.caption("⚠️ If sync fails with 429, wait 1-2 hours before retrying. Garmin rate limits login attempts.")
-
-        if st.button("🔄 Sync Garmin Data"):
-            try:
-                garmin_email = st.secrets["GARMIN_EMAIL"]
-                garmin_password = st.secrets["GARMIN_PASSWORD"]
-                supabase_url = st.secrets["SUPABASE_URL"]
-                supabase_key = st.secrets["SUPABASE_KEY"]
-
-                with st.spinner("Connecting to Garmin Connect..."):
-                    success, message = sync_garmin(
-                        supabase_url=supabase_url,
-                        supabase_key=supabase_key,
-                        garmin_email=garmin_email,
-                        garmin_password=garmin_password,
-                        target_date=sync_date
-                    )
-                if success:
-                    st.success(message)
-                else:
-                    if "429" in str(message):
-                        st.error("Rate limited by Garmin. Please wait 1-2 hours before trying again.")
-                    elif "403" in str(message):
-                        st.error("Garmin login blocked. Check your email/password in secrets.toml.")
-                    else:
-                        st.error(message)
-            except KeyError as e:
-                st.error(f"Missing secret: {e}. Add GARMIN_EMAIL and GARMIN_PASSWORD to secrets.toml")
-            except Exception as e:
-                if "429" in str(e):
-                    st.error("Rate limited by Garmin. Please wait 1-2 hours before trying again.")
-                elif "403" in str(e):
-                    st.error("Garmin login blocked. Check your email/password in secrets.toml.")
-                else:
-                    st.error(f"Sync failed: {e}")
-
         st.divider()
         if db.is_connected():
             show_plan_builder = st.toggle("🛠️ Open Plan Builder", value=False)

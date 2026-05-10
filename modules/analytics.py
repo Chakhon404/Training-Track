@@ -592,11 +592,83 @@ def render_export_section():
 def render_wellness():
     db = get_db()
     st.header("🔋 Wellness & Recovery")
-    st.caption("Data synced from Garmin Connect.")
+    
+    # --- MANUAL ENTRY FORM ---
+    with st.expander("📝 Log Daily Wellness", expanded=True):
+        with st.form("wellness_manual_form", clear_on_submit=True):
+            col1, col2 = st.columns(2)
+            log_date = col1.date_input("Log Date", value=datetime.now().date())
+            resting_hr = col2.number_input("Resting Heart Rate (bpm)", min_value=30, max_value=150, value=55, step=1)
+
+            st.markdown("---")
+            st.markdown("### 😴 Sleep Session")
+            t1, t2 = st.columns(2)
+            sleep_start_time = t1.time_input("Sleep Start Time", value=datetime.strptime("22:00", "%H:%M").time())
+            sleep_end_time = t2.time_input("Sleep End Time", value=datetime.strptime("06:00", "%H:%M").time())
+            
+            sleep_score = st.select_slider("Sleep Quality Score", options=list(range(101)), value=80)
+
+            st.markdown("---")
+            st.markdown("### 📊 Daily Readiness Metrics")
+            m1, m2, m3 = st.columns(3)
+            with m1:
+                stress_avg = st.select_slider("Avg Stress", options=list(range(101)), value=25)
+            with m2:
+                training_readiness = st.select_slider("Training Readiness", options=list(range(101)), value=80)
+            with m3:
+                body_battery_start = st.select_slider("Body Battery (Start)", options=list(range(101)), value=90)
+
+            if st.form_submit_button("💾 Save Wellness Data"):
+                try:
+                    # Logic for Cross-Midnight Calculation
+                    # We assume sleep_start is on (log_date - 1 day) if it's late night, 
+                    # but for simplicity, we treat log_date as the 'waking up' date.
+                    # Start is usually night before, End is morning of log_date.
+                    
+                    start_dt = datetime.combine(log_date - timedelta(days=1), sleep_start_time)
+                    end_dt = datetime.combine(log_date, sleep_end_time)
+                    
+                    # If end_dt is still before or equal to start_dt, adjust (e.g., sleeping after midnight)
+                    if end_dt <= start_dt:
+                        # Case: user slept at 1 AM and woke up at 8 AM on the same log_date
+                        start_dt = datetime.combine(log_date, sleep_start_time)
+                        if end_dt <= start_dt:
+                             # This should technically not happen if they sleep and wake on same day 
+                             # unless it's a very short nap or error.
+                             pass
+
+                    duration_min = int((end_dt - start_dt).total_seconds() / 60)
+
+                    # Validation
+                    if duration_min <= 0:
+                        st.error("❌ Invalid sleep duration. Please check your start and end times.")
+                    else:
+                        payload = {
+                            "log_date": str(log_date),
+                            "sleep_start": start_dt.isoformat(),
+                            "sleep_end": end_dt.isoformat(),
+                            "sleep_duration_min": duration_min,
+                            "sleep_score": int(sleep_score),
+                            "resting_hr": int(resting_hr),
+                            "stress_avg": int(stress_avg),
+                            "body_battery_start": int(body_battery_start),
+                            "training_readiness": int(training_readiness)
+                        }
+                        
+                        if db.save_wellness(payload):
+                            st.success(f"✅ Wellness data for {log_date} saved successfully!")
+                            st.rerun()
+                        else:
+                            st.error("❌ Database Error: Could not save wellness entry.")
+                            
+                except Exception as e:
+                    st.error(f"⚠️ Error processing data: {str(e)}")
+
+    st.divider()
 
     wellness = db.fetch_wellness(days=30)
     if not wellness:
-        st.info("No wellness data yet. Use '🔄 Sync Garmin Data' in the sidebar to import.")
+        st.info("No wellness data yet. Start by logging your data above.")
         return
 
     df = pd.DataFrame(wellness)
@@ -605,14 +677,13 @@ def render_wellness():
 
     # Section A — Today's snapshot
     latest = df.iloc[-1]
-    st.subheader("📊 Latest")
+    st.subheader("📊 Latest Snapshot")
     c1, c2, c3, c4, c5 = st.columns(5)
     c1.metric("Sleep Score", f"{int(latest['sleep_score']) if pd.notna(latest['sleep_score']) else 'N/A'}")
     c2.metric("Resting HR", f"{int(latest['resting_hr']) if pd.notna(latest['resting_hr']) else 'N/A'} bpm")
     c3.metric("Avg Stress", f"{int(latest['stress_avg']) if pd.notna(latest['stress_avg']) else 'N/A'}")
-    c4.metric("Body Battery", 
-        f"{int(latest['body_battery_end']) if pd.notna(latest['body_battery_end']) else 'N/A'}",
-        delta=f"started at {int(latest['body_battery_start']) if pd.notna(latest['body_battery_start']) else '?'}"
+    c4.metric("Body Battery",
+        f"{int(latest['body_battery_start']) if pd.notna(latest['body_battery_start']) else 'N/A'}"
     )
     c5.metric(
         "Training Readiness",
@@ -620,7 +691,6 @@ def render_wellness():
     )
 
     st.divider()
-
     # Section B — Sleep duration bar
     if 'sleep_duration_min' in df.columns:
         st.subheader("😴 Sleep Duration (last 30 days)")

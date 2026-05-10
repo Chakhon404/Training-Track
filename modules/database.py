@@ -362,6 +362,15 @@ class TrainingDB:
         except Exception:
             return False
 
+    def save_wellness(self, payload: dict) -> bool:
+        """Upsert wellness data into the wellness table."""
+        if not self.is_connected(): return False
+        try:
+            self.supabase.table("wellness").upsert(payload, on_conflict="log_date").execute()
+            return True
+        except Exception:
+            return False
+
 @st.cache_resource
 def get_db():
     return TrainingDB()
