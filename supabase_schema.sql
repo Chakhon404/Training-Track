@@ -13,7 +13,8 @@ CREATE TABLE workouts (
   sets INTEGER NOT NULL,
   reps INTEGER NOT NULL,
   rpe FLOAT NOT NULL,
-  volume FLOAT NOT NULL
+  volume FLOAT NOT NULL,
+  duration_sec INT DEFAULT 0
 );
 
 CREATE TABLE running (
@@ -102,3 +103,34 @@ $$ LANGUAGE plpgsql;
 CREATE TRIGGER user_profile_updated_at
 BEFORE UPDATE ON user_profile
 FOR EACH ROW EXECUTE FUNCTION update_user_profile_updated_at();
+
+-- WELLNESS TABLE
+CREATE TABLE wellness (
+  id UUID PRIMARY KEY DEFAULT uuid_generate_v4(),
+  log_date DATE UNIQUE NOT NULL,
+  sleep_start TIMESTAMP,
+  sleep_end TIMESTAMP,
+  sleep_duration_min INT,
+  sleep_score INT,
+  resting_hr INT,
+  stress_avg INT,
+  body_battery_start INT,
+  body_battery_end INT,
+  training_readiness INT,
+  updated_at TIMESTAMP DEFAULT now()
+);
+
+ALTER TABLE wellness ENABLE ROW LEVEL SECURITY;
+CREATE POLICY "allow all" ON wellness USING (true) WITH CHECK (true);
+
+CREATE OR REPLACE FUNCTION update_wellness_updated_at()
+RETURNS TRIGGER AS $$
+BEGIN
+  NEW.updated_at = now();
+  RETURN NEW;
+END;
+$$ LANGUAGE plpgsql;
+
+CREATE TRIGGER wellness_updated_at
+BEFORE UPDATE ON wellness
+FOR EACH ROW EXECUTE FUNCTION update_wellness_updated_at();

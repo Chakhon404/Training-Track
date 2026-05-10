@@ -303,6 +303,38 @@ class TrainingDB:
         except Exception:
             return None
 
+    # --- WELLNESS ---
+
+    def fetch_wellness(self, days: int = 30):
+        """Fetch last N days of wellness data ordered by date desc."""
+        if not self.is_connected(): return []
+        try:
+            response = (
+                self.supabase.table("wellness")
+                .select("*")
+                .order("log_date", desc=True)
+                .limit(days)
+                .execute()
+            )
+            return response.data
+        except Exception:
+            return []
+
+    def fetch_wellness_by_date(self, log_date: str):
+        """Fetch single wellness entry by date (YYYY-MM-DD)."""
+        if not self.is_connected(): return None
+        try:
+            response = (
+                self.supabase.table("wellness")
+                .select("*")
+                .eq("log_date", log_date)
+                .limit(1)
+                .execute()
+            )
+            return response.data[0] if response.data else None
+        except Exception:
+            return None
+
     def fetch_profile(self) -> dict | None:
         """Returns the single user profile row, or None if not set up yet."""
         if not self.is_connected(): return None

@@ -1,6 +1,7 @@
 import streamlit as st
 import pandas as pd
 import numpy as np
+import plotly.express as px
 from datetime import datetime, timedelta
 from modules.database import get_db
 
@@ -216,6 +217,12 @@ def render_overview():
         nut_today = df_nut[df_nut['date'] == today] if not df_nut.empty else pd.DataFrame()
         run_today = df_run[df_run['date'] == today] if not df_run.empty else pd.DataFrame()
 
+    # Fetch latest wellness for Readiness
+    wellness = db.fetch_wellness(days=1)
+    tr_score = None
+    if wellness:
+        tr_score = wellness[0].get("training_readiness")
+
     # Section A — Header
     st.header("🏠 Daily Overview")
     st.caption(f"Today: {today.strftime('%A, %d %B %Y')}")
@@ -240,7 +247,7 @@ def render_overview():
                 st.caption("💊 " + " · ".join(profile["supplements"]))
 
     # Section B — Activity Status Row
-    c1, c2, c3, c4 = st.columns(4)
+    c1, c2, c3, c4, c5 = st.columns(5)
     
     with c1:
         if not work_today.empty:
@@ -259,13 +266,20 @@ def render_overview():
             st.metric("🏃 Movement", "Rest day")
 
     with c3:
+        st.metric(
+            "💪 Readiness",
+            f"{tr_score}/100" if tr_score else "N/A",
+            help="Garmin Training Readiness score"
+        )
+
+    with c4:
         if not weight_today.empty:
             w = weight_today.iloc[-1]['weight']
             st.metric("⚖️ Weight", f"{w} kg")
         else:
             st.metric("⚖️ Weight", "Not logged")
 
-    with c4:
+    with c5:
         if not nut_today.empty:
             cal = int(nut_today.iloc[-1]['calories'])
             st.metric("🍱 Calories", f"{cal} kcal", delta=f"{cal - GOAL_CALORIES} vs Goal")
@@ -574,3 +588,112 @@ def render_export_section():
             mime="text/csv",
             width='stretch'
         )
+
+def render_wellness():
+    db = get_db()
+    st.header("🔋 Wellness & Recovery")
+    st.caption("Data synced from Garmin Connect.")
+
+    wellness = db.fetch_wellness(days=30)
+    if not wellness:
+        st.info("No wellness data yet. Use '🔄 Sync Garmin Data' in the sidebar to import.")
+        return
+
+    df = pd.DataFrame(wellness)
+    df['log_date'] = pd.to_datetime(df['log_date'])
+    df = df.sort_values('log_date')
+
+    # Section A — Today's snapshot
+    latest = df.iloc[-1]
+    st.subheader("📊 Latest")
+    c1, c2, c3, c4, c5 = st.columns(5)
+    c1.metric("Sleep Score", f"{int(latest['sleep_score']) if pd.notna(latest['sleep_score']) else 'N/A'}")
+    c2.metric("Resting HR", f"{int(latest['resting_hr']) if pd.notna(latest['resting_hr']) else 'N/A'} bpm")
+    c3.metric("Avg Stress", f"{int(latest['stress_avg']) if pd.notna(latest['stress_avg']) else 'N/A'}")
+    c4.metric("Body Battery", 
+        f"{int(latest['body_battery_end']) if pd.notna(latest['body_battery_end']) else 'N/A'}",
+        delta=f"started at {int(latest['body_battery_start']) if pd.notna(latest['body_battery_start']) else '?'}"
+    )
+    c5.metric(
+        "Training Readiness",
+        f"{int(latest['training_readiness']) if pd.notna(latest.get('training_readiness')) else 'N/A'}"
+    )
+
+    st.divider()
+
+    # Section B — Sleep duration bar
+    if 'sleep_duration_min' in df.columns:
+        st.subheader("😴 Sleep Duration (last 30 days)")
+        df['sleep_hours'] = df['sleep_duration_min'] / 60
+        fig_sleep = px.bar(
+            df, x='log_date', y='sleep_hours',
+            labels={'log_date': 'Date', 'sleep_hours': 'Hours'},
+            color_discrete_sequence=['#5DCAA5']
+        )
+        fig_sleep.add_hline(y=8, line_dash="dash", line_color="gray", annotation_text="8hr goal")
+        fig_sleep.update_layout(showlegend=False)
+        st.plotly_chart(fig_sleep, width='stretch')
+
+    # Section C — RHR trend
+    st.subheader("❤️ Resting Heart Rate Trend")
+    fig_rhr = px.line(
+        df.dropna(subset=['resting_hr']),
+        x='log_date', y='resting_hr',
+        labels={'log_date': 'Date', 'resting_hr': 'RHR (bpm)'},
+        color_discrete_sequence=['#D85A30']
+    )
+    st.plotly_chart(fig_rhr, width='stretch')
+
+    # Section D — Body Battery
+    st.subheader("🔋 Body Battery")
+    fig_bb = px.line(
+        df.dropna(subset=['body_battery_end']),
+        x='log_date', y='body_battery_end',
+        labels={'log_date': 'Date', 'body_battery_end': 'Body Battery (end of day)'},
+        color_discrete_sequence=['#378ADD']
+    )
+    st.plotly_chart(fig_bb, width='stretch')
+
+    # Training Readiness
+    st.subheader("💪 Training Readiness Trend")
+    if 'training_readiness' in df.columns and df['training_readiness'].notna().any():
+        fig_tr = px.line(
+            df.dropna(subset=['training_readiness']),
+            x='log_date', y='training_readiness',
+            labels={'log_date': 'Date', 'training_readiness': 'Training Readiness'},
+            color_discrete_sequence=['#7F77DD']
+        )
+        fig_tr.add_hline(y=75, line_dash="dash", line_color="gray", annotation_text="High readiness")
+        fig_tr.add_hline(y=40, line_dash="dash", line_color="orange", annotation_text="Low readiness")
+        st.plotly_chart(fig_tr, width='stretch')
+    else:
+        st.info("No training readiness data yet.")
+
+    # Section E — Correlation: Sleep Score vs Training Volume
+    st.subheader("🔗 Sleep vs Next-Day Training Volume")
+    workouts = db.fetch_workouts()
+    if workouts:
+        df_work = pd.DataFrame(workouts)
+        df_work['log_ts'] = pd.to_datetime(df_work['log_ts'], format='ISO8601')
+        df_work['log_date'] = df_work['log_ts'].dt.date
+        df_vol = df_work.groupby('log_date')['volume'].sum().reset_index()
+        df_vol['log_date'] = pd.to_datetime(df_vol['log_date'])
+        df_vol['next_date'] = df_vol['log_date']
+        df['log_date_only'] = df['log_date'].dt.date
+        df_vol['log_date_only'] = df_vol['log_date'].dt.date
+
+        df_corr = df[['log_date_only', 'sleep_score']].merge(
+            df_vol[['log_date_only', 'volume']],
+            left_on='log_date_only', right_on='log_date_only',
+            how='inner'
+        )
+        if not df_corr.empty and len(df_corr) >= 3:
+            fig_corr = px.scatter(
+                df_corr, x='sleep_score', y='volume',
+                trendline='ols',
+                labels={'sleep_score': 'Sleep Score', 'volume': 'Training Volume (kg)'},
+                color_discrete_sequence=['#7F77DD']
+            )
+            st.plotly_chart(fig_corr, width='stretch')
+        else:
+            st.info("Need at least 3 data points to show correlation.")

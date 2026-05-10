@@ -21,7 +21,7 @@ def render_plan_builder():
             for i in range(10):
                 c1, c2 = st.columns([3, 1])
                 name = c1.text_input(f"Exercise {i+1}", key=f"ex_n_{i}")
-                etype = c2.selectbox("Type", ["Heavy", "Bodyweight"], key=f"ex_t_{i}")
+                etype = c2.selectbox("Type", ["Heavy", "Bodyweight", "Timed"], key=f"ex_t_{i}")
                 ex_data.append({"name": name, "type": etype})
             
             if st.form_submit_button("💾 Save Plan"):
@@ -87,6 +87,8 @@ def render_workout_form():
             for i, ex in enumerate(selected_plan['exercises']):
                 if ex['type'] == "Heavy":
                     ex_data[f"work_w_{i}"] = st.session_state.get(f"work_w_{i}", 0.0)
+                elif ex['type'] == "Timed":
+                    ex_data[f"work_d_{i}"] = st.session_state.get(f"work_d_{i}", 0)
                 ex_data[f"work_s_{i}"] = st.session_state.get(f"work_s_{i}", 0)
                 ex_data[f"work_r_{i}"] = st.session_state.get(f"work_r_{i}", 0)
                 ex_data[f"work_rpe_{i}"] = st.session_state.get(f"work_rpe_{i}", 7.0)
@@ -143,14 +145,22 @@ def render_workout_form():
             w = c1.number_input("Weight (kg)", min_value=0.0, step=0.5, key=f"work_w_{i}", on_change=save_workout_draft)
             s = c2.number_input("Sets", min_value=0, step=1, key=f"work_s_{i}", on_change=save_workout_draft)
             r = c3.number_input("Reps", min_value=0, step=1, key=f"work_r_{i}", on_change=save_workout_draft)
+            d = 0
+        elif ex_t == "Timed":
+            c1, c2 = st.columns(2)
+            s = c1.number_input("Sets", min_value=0, step=1, key=f"work_s_{i}", on_change=save_workout_draft)
+            d = c2.number_input("Duration per set (sec)", min_value=0, step=5, key=f"work_d_{i}", on_change=save_workout_draft)
+            r = 0
+            w = 0.0
         else:
             c1, c2 = st.columns(2)
             s = c1.number_input("Sets", min_value=0, step=1, key=f"work_s_{i}", on_change=save_workout_draft)
             r = c2.number_input("Reps", min_value=0, step=1, key=f"work_r_{i}", on_change=save_workout_draft)
             w = 0.0
+            d = 0
 
         rpe = st.slider("Intensity (RPE)", 1.0, 10.0, 7.0, 0.5, key=f"work_rpe_{i}", on_change=save_workout_draft)
-        session_results.append({"name": ex_n, "type": ex_t, "w": w, "s": s, "r": r, "rpe": rpe})
+        session_results.append({"name": ex_n, "type": ex_t, "w": w, "s": s, "r": r, "d": d, "rpe": rpe})
         st.divider()
 
     submitted = st.button("💾 Save Training Session")
@@ -170,6 +180,8 @@ def render_workout_form():
                 if item["s"] > 0:
                     if item["type"] == "Bodyweight":
                         volume = bodyweight_kg * item["s"] * item["r"]
+                    elif item["type"] == "Timed":
+                        volume = bodyweight_kg * item["s"] * (item["d"] / 60)
                     else:
                         volume = item["w"] * item["s"] * item["r"]
                     final_rows.append({
@@ -180,7 +192,8 @@ def render_workout_form():
                         "sets": item["s"],
                         "reps": item["r"],
                         "rpe": item["rpe"],
-                        "volume": volume
+                        "volume": volume,
+                        "duration_sec": item.get("d", 0)
                     })
 
             if final_rows:

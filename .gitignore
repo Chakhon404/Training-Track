@@ -43,3 +43,4 @@ desktop.ini
 modules/__pycache__
 docs/superpowers/plans
 *.md
+.garmin_tokens
