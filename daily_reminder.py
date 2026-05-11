@@ -2,7 +2,7 @@ import os
 import requests
 import json
 from datetime import datetime
-import google.generativeai as genai
+from google import genai
 from supabase import create_client, Client
 from dotenv import load_dotenv
 
@@ -44,8 +44,7 @@ def get_daily_status():
     
     for entry in nut_res.data:
         for sup in sups_status.keys():
-            # Handle possible key naming differences (multi_vitamin vs multivitamin)
-            db_key = "multivitamin" if sup == "multi_vitamin" else sup
+            db_key = "multivitamin" if sup == "multivitamin" else sup
             if entry.get(db_key):
                 sups_status[sup] = True
                 
@@ -65,8 +64,7 @@ def generate_coach_message(missing_items):
     if not missing_items:
         return "วันนี้ทำดีมากไอ้เสือ! ครบถ้วนทุกอย่าง ลุยต่อพรุ่งนี้! 🥊"
         
-    genai.configure(api_key=GEMINI_API_KEY)
-    model = genai.GenerativeModel('gemini-1.5-flash')
+    client = genai.Client(api_key=GEMINI_API_KEY)
     
     prompt = f"""
     You are a tough but caring Thai boxing coach. 
@@ -75,7 +73,10 @@ def generate_coach_message(missing_items):
     Keep it concise but powerful. Use boxing metaphors.
     """
     
-    response = model.generate_content(prompt)
+    response = client.models.generate_content(
+        model='gemini-3-flash',
+        contents=prompt
+    )
     return response.text.strip()
 
 def send_line_message(message):
