@@ -4,6 +4,24 @@ import json
 from datetime import datetime
 from modules.database import get_db
 
+# json_key → (display_name, session_key, db_column)
+SUPPLEMENT_MAP = {
+    "creatine":       ("Creatine",       "nut_crea",         "creatine"),
+    "protein_powder": ("Protein Powder", "nut_prot",         "protein_powder"),
+    "multi_vitamin":  ("Multi-Vitamin",  "nut_vit",          "multivitamin"),
+    "omega_3":        ("Omega-3",        "nut_omg",          "omega3"),
+    "fish_oil":       ("Fish Oil",       "nut_fish_oil",     "fish_oil"),
+    "astaxanthin":    ("Astaxanthin",    "nut_astaxanthin",  "astaxanthin"),
+    "magnesium":      ("Magnesium",      "nut_magnesium",    "magnesium"),
+    "zinc":           ("Zinc",           "nut_zinc",         "zinc"),
+    "vitamin_d3":     ("Vitamin D3",     "nut_vitamin_d3",   "vitamin_d3"),
+    "vitamin_c":      ("Vitamin C",      "nut_vitamin_c",    "vitamin_c"),
+    "bcaa_eaa":       ("BCAA/EAA",       "nut_bcaa_eaa",     "bcaa_eaa"),
+    "pre_workout":    ("Pre-Workout",    "nut_pre_workout",  "pre_workout"),
+    "caffeine":       ("Caffeine",       "nut_caffeine",     "caffeine"),
+    "probiotics":     ("Probiotics",     "nut_probiotics",   "probiotics"),
+}
+
 def get_timestamp(log_date, log_time):
     return f"{log_date} {log_time.strftime('%H:%M:%S')}"
 
@@ -330,7 +348,7 @@ def render_biohack_form():
     form_key = f"draft_nutrition_{st.session_state.get('user_id', 'default')}"
 
     # ── JSON Quick Fill ──────────────────────────────────
-    with st.expander("⚡ Quick Fill from Gemini Gem", expanded=False):
+    with st.expander("⚡ Quick Fill", expanded=False):
         st.caption("Paste JSON from your Gemini Gem to auto-fill the form below.")
         
         json_input = st.text_area(
