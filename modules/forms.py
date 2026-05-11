@@ -377,10 +377,15 @@ def render_biohack_form():
 
                     # Parse supplements (map key names)
                     sups = data.get("supplements", {})
-                    st.session_state.nut_crea = bool(sups.get("creatine", st.session_state.get("nut_crea", False)))
-                    st.session_state.nut_prot = bool(sups.get("protein_powder", st.session_state.get("nut_prot", False)))
-                    st.session_state.nut_vit  = bool(sups.get("multi_vitamin", st.session_state.get("nut_vit", False)))
-                    st.session_state.nut_omg  = bool(sups.get("omega_3", st.session_state.get("nut_omg", False)))
+                    for json_key, (display, sess_key, db_col) in SUPPLEMENT_MAP.items():
+                        if json_key in sups:
+                            st.session_state[sess_key] = bool(sups[json_key])
+
+                    # food_name (JSON uses "name_food")
+                    if "name_food" in data:
+                        st.session_state.nut_food_name = str(data["name_food"])
+                    elif "food_name" in data:
+                        st.session_state.nut_food_name = str(data["food_name"])
 
                     # Parse macros
                     macros = data.get("energy_macros", {})
@@ -407,10 +412,24 @@ def render_biohack_form():
         draft = db.load_draft(form_key) or {}
         st.session_state.nut_date = datetime.strptime(draft.get("date", datetime.now().strftime("%Y-%m-%d")), "%Y-%m-%d").date()
         st.session_state.nut_time = datetime.strptime(draft.get("time", datetime.now().strftime("%H:%M:%S")), "%H:%M:%S").time()
-        st.session_state.nut_crea = draft.get("crea", False)
-        st.session_state.nut_prot = draft.get("prot", False)
-        st.session_state.nut_vit = draft.get("vit", False)
-        st.session_state.nut_omg = draft.get("omg", False)
+        
+        # food_name
+        st.session_state.nut_food_name = draft.get("food_name", "")
+        
+        # Load default supplements from user profile if no draft exists
+        if not draft:
+            profile = db.fetch_profile() or {}
+            default_sups = profile.get("default_supplements") or []
+        else:
+            default_sups = []
+
+        for json_key, (display, sess_key, db_col) in SUPPLEMENT_MAP.items():
+            draft_val = draft.get(db_col)
+            if draft_val is not None:
+                st.session_state[sess_key] = bool(draft_val)
+            else:
+                st.session_state[sess_key] = json_key in default_sups
+        
         st.session_state.nut_cal = draft.get("cal", 0)
         st.session_state.nut_pg = draft.get("p_g", 0)
         st.session_state.nut_cg = draft.get("c_g", 0)
@@ -422,16 +441,15 @@ def render_biohack_form():
         data = {
             "date": str(st.session_state.nut_date),
             "time": st.session_state.nut_time.strftime("%H:%M:%S"),
-            "crea": st.session_state.nut_crea,
-            "prot": st.session_state.nut_prot,
-            "vit": st.session_state.nut_vit,
-            "omg": st.session_state.nut_omg,
+            "food_name": st.session_state.get("nut_food_name", ""),
+            "meal_score": st.session_state.get("nut_meal_score", 5),
             "cal": st.session_state.nut_cal,
             "p_g": st.session_state.nut_pg,
             "c_g": st.session_state.nut_cg,
             "f_g": st.session_state.nut_fg,
-            "meal_score": st.session_state.get("nut_meal_score", 5)
         }
+        for json_key, (display, sess_key, db_col) in SUPPLEMENT_MAP.items():
+            data[db_col] = st.session_state.get(sess_key, False)
         db.save_draft(form_key, data)
 
     col_d, col_t = st.columns(2)
@@ -440,12 +458,22 @@ def render_biohack_form():
     with col_t:
         l_time = st.time_input("Time", key="nut_time", on_change=save_nut_draft)
 
-    st.markdown("### Supplements")
-    c1, c2, c3, c4 = st.columns(4)
-    crea = c1.checkbox("Creatine", key="nut_crea", on_change=save_nut_draft)
-    prot = c2.checkbox("Protein Powder", key="nut_prot", on_change=save_nut_draft)
-    vit = c3.checkbox("Multi-Vitamin", key="nut_vit", on_change=save_nut_draft)
-    omg = c4.checkbox("Omega 3", key="nut_omg", on_change=save_nut_draft)
+    food_name = st.text_input(
+        "🍽️ Food Name / Description",
+        key="nut_food_name",
+        placeholder="e.g. โอ๊ตเต็มใบ 30g + โยเกิร์ต 1 ถ้วย",
+        on_change=save_nut_draft
+    )
+
+    st.markdown("### 💊 Supplements")
+    sup_keys = list(SUPPLEMENT_MAP.keys())
+    cols_per_row = 4
+    for row_start in range(0, len(sup_keys), cols_per_row):
+        row_keys = sup_keys[row_start:row_start + cols_per_row]
+        cols = st.columns(len(row_keys))
+        for col, json_key in zip(cols, row_keys):
+            display, sess_key, db_col = SUPPLEMENT_MAP[json_key]
+            col.checkbox(display, key=sess_key, on_change=save_nut_draft)
 
     st.divider()
     st.markdown("### Energy & Macros")
@@ -479,16 +507,16 @@ def render_biohack_form():
             log_ts = get_timestamp(l_date, l_time)
             nut_data = {
                 "log_ts": log_ts,
+                "food_name": st.session_state.get("nut_food_name", ""),
                 "calories": cal,
                 "protein_g": p_g,
                 "carbs_g": c_g,
                 "fat_g": f_g,
-                "creatine": crea,
-                "protein_powder": prot,
-                "multivitamin": vit,
-                "omega3": omg,
-                "meal_score": int(meal_score)
+                "meal_score": int(st.session_state.get("nut_meal_score", 5)),
             }
+            for json_key, (display, sess_key, db_col) in SUPPLEMENT_MAP.items():
+                nut_data[db_col] = bool(st.session_state.get(sess_key, False))
+            
             if db.save_nutrition(nut_data):
                 st.success("✅ Nutrition data saved.")
                 db.clear_draft(form_key)
