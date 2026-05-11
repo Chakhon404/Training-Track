@@ -467,14 +467,24 @@ def render_biohack_form():
     )
 
     st.markdown("### 💊 Supplements")
-    sup_keys = list(SUPPLEMENT_MAP.keys())
-    cols_per_row = 4
-    for row_start in range(0, len(sup_keys), cols_per_row):
-        row_keys = sup_keys[row_start:row_start + cols_per_row]
-        cols = st.columns(len(row_keys))
-        for col, json_key in zip(cols, row_keys):
-            display, sess_key, db_col = SUPPLEMENT_MAP[json_key]
-            col.checkbox(display, key=sess_key, on_change=save_nut_draft)
+
+    # Load profile supplements
+    profile = db.fetch_profile() or {}
+    default_sups = profile.get("default_supplements") or []
+
+    # Filter to only show supplements in profile
+    sup_keys = [k for k in SUPPLEMENT_MAP.keys() if k in default_sups]
+
+    if not sup_keys:
+        st.info("💡 No supplements configured. Go to ⚙️ System → 👤 Edit Profile & Goals to add your supplements.")
+    else:
+        cols_per_row = 4
+        for row_start in range(0, len(sup_keys), cols_per_row):
+            row_keys = sup_keys[row_start:row_start + cols_per_row]
+            cols = st.columns(len(row_keys))
+            for col, json_key in zip(cols, row_keys):
+                display, sess_key, db_col = SUPPLEMENT_MAP[json_key]
+                col.checkbox(display, key=sess_key, on_change=save_nut_draft)
 
     st.divider()
     st.markdown("### Energy & Macros")
