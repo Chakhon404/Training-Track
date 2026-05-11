@@ -134,3 +134,5 @@ $$ LANGUAGE plpgsql;
 CREATE TRIGGER wellness_updated_at
 BEFORE UPDATE ON wellness
 FOR EACH ROW EXECUTE FUNCTION update_wellness_updated_at();
+
+ALTER TABLE nutrition ADD COLUMN IF NOT EXISTS meal_score INT DEFAULT NULL;
