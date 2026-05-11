@@ -1,5 +1,6 @@
 import streamlit as st
 import pandas as pd
+import json
 from datetime import datetime
 from modules.database import get_db
 
@@ -327,6 +328,66 @@ def render_biohack_form():
     db = get_db()
     st.subheader("🍱 Nutrition Log")
     form_key = f"draft_nutrition_{st.session_state.get('user_id', 'default')}"
+
+    # ── JSON Quick Fill ──────────────────────────────────
+    with st.expander("⚡ Quick Fill from Gemini Gem", expanded=False):
+        st.caption("Paste JSON from your Gemini Gem to auto-fill the form below.")
+        
+        json_input = st.text_area(
+            "Paste JSON here",
+            height=200,
+            placeholder='{\n  "log_date": "2026-05-11",\n  "log_time": "12:30",\n  "supplements": {\n    "creatine": true,\n    "protein_powder": false,\n    "multi_vitamin": true,\n    "omega_3": true\n  },\n  "energy_macros": {\n    "calories": 2100,\n    "protein_g": 145,\n    "carbs_g": 210,\n    "fat_g": 65\n  },\n  "meal_score": 8\n}',
+            key="nut_json_input"
+        )
+
+        if st.button("📋 Fill Form from JSON", key="nut_json_fill"):
+            if json_input.strip():
+                try:
+                    import json
+                    data = json.loads(json_input)
+
+                    # Parse date
+                    if "log_date" in data:
+                        st.session_state.nut_date = datetime.strptime(
+                            data["log_date"], "%Y-%m-%d"
+                        ).date()
+
+                    # Parse time
+                    if "log_time" in data:
+                        st.session_state.nut_time = datetime.strptime(
+                            data["log_time"], "%H:%M"
+                        ).time()
+
+                    # Parse supplements (map key names)
+                    sups = data.get("supplements", {})
+                    st.session_state.nut_crea = bool(sups.get("creatine", st.session_state.get("nut_crea", False)))
+                    st.session_state.nut_prot = bool(sups.get("protein_powder", st.session_state.get("nut_prot", False)))
+                    st.session_state.nut_vit  = bool(sups.get("multi_vitamin", st.session_state.get("nut_vit", False)))
+                    st.session_state.nut_omg  = bool(sups.get("omega_3", st.session_state.get("nut_omg", False)))
+
+                    # Parse macros
+                    macros = data.get("energy_macros", {})
+                    st.session_state.nut_cal = int(macros.get("calories", st.session_state.get("nut_cal", 0)))
+                    st.session_state.nut_pg  = int(macros.get("protein_g", st.session_state.get("nut_pg", 0)))
+                    st.session_state.nut_cg  = int(macros.get("carbs_g", st.session_state.get("nut_cg", 0)))
+                    st.session_state.nut_fg  = int(macros.get("fat_g", st.session_state.get("nut_fg", 0)))
+
+                    # Parse meal_score
+                    if "meal_score" in data:
+                        st.session_state.nut_meal_score = int(data["meal_score"])
+
+                    # Reset draft loaded so form re-initializes from session state
+                    st.session_state.pop("nut_draft_loaded", None)
+
+                    st.success("✅ Form filled! Review below and click Save.")
+                    st.rerun()
+
+                except json.JSONDecodeError:
+                    st.error("❌ Invalid JSON format. Please check and try again.")
+                except Exception as e:
+                    st.error(f"❌ Error parsing JSON: {e}")
+            else:
+                st.warning("Please paste a JSON first.")
 
     if "nut_draft_loaded" not in st.session_state:
         draft = db.load_draft(form_key) or {}
