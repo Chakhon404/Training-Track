@@ -672,14 +672,27 @@ def render_profile_form():
         )
 
         st.divider()
-        st.markdown("### 💊 Supplements")
-        sup_options = ["Creatine", "Protein Powder", "Multi-Vitamin", "Omega-3", "Vitamin D", "Magnesium", "ZMA", "Pre-workout"]
-        current_sups = profile.get("supplements") or []
-        supplements = st.multiselect(
-            "Supplements you take regularly",
-            options=sup_options,
-            default=[s for s in current_sups if s in sup_options]
+        st.markdown("### 💊 Default Supplements")
+        st.caption("These will be pre-checked in the Nutrition form every day.")
+
+        sup_display_names = [display for json_key, (display, sess_key, db_col) in SUPPLEMENT_MAP.items()]
+        sup_json_keys = [json_key for json_key in SUPPLEMENT_MAP.keys()]
+
+        current_defaults = profile.get("default_supplements") or []
+        default_indices = [sup_json_keys.index(k) for k in current_defaults if k in sup_json_keys]
+        default_display = [sup_display_names[i] for i in default_indices]
+
+        selected_display = st.multiselect(
+            "Supplements you take daily by default",
+            options=sup_display_names,
+            default=default_display
         )
+
+        # Convert back to json_keys for storage
+        selected_json_keys = [
+            sup_json_keys[sup_display_names.index(d)]
+            for d in selected_display
+        ]
 
         st.divider()
         notes = st.text_area(
@@ -698,7 +711,7 @@ def render_profile_form():
                 "goal_protein_g": goal_prot,
                 "goal_carbs_g": goal_carbs,
                 "goal_fat_g": goal_fat,
-                "supplements": supplements,
+                "default_supplements": selected_json_keys,
                 "notes": notes
             }
             if db.save_profile(profile_data):
