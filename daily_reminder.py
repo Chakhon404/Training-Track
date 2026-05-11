@@ -57,30 +57,36 @@ def generate_summary_message(profile, stats):
         return "ไม่พบข้อมูลโปรไฟล์หรือโภชนาการสำหรับวันนี้"
 
     def get_diff(current, goal):
+        goal = goal or 0
+        current = current or 0
         diff = goal - current
         return max(0, diff)
 
     msg = f"ชาคร\nสรุปโภชนาการวันนี้:\n"
     
     # Calories
-    diff_cal = get_diff(stats['calories'], profile['goal_calories'])
-    msg += f"- แคลอรี่: {int(stats['calories'])}/{int(profile['goal_calories'])} kcal (ขาดอีก {int(diff_cal)} kcal)\n"
+    goal_cal = profile.get('goal_calories') or 0
+    diff_cal = get_diff(stats['calories'], goal_cal)
+    msg += f"- แคลอรี่: {int(stats['calories'])}/{int(goal_cal)} kcal (ขาดอีก {int(diff_cal)} kcal)\n"
     
     # Protein
-    diff_p = get_diff(stats['protein_g'], profile['goal_protein_g'])
-    msg += f"- โปรตีน: {int(stats['protein_g'])}/{int(profile['goal_protein_g'])} g (ขาดอีก {int(diff_p)} g)\n"
+    goal_p = profile.get('goal_protein_g') or 0
+    diff_p = get_diff(stats['protein_g'], goal_p)
+    msg += f"- โปรตีน: {int(stats['protein_g'])}/{int(goal_p)} g (ขาดอีก {int(diff_p)} g)\n"
     
     # Carbs
-    diff_c = get_diff(stats['carbs_g'], profile['goal_carbs_g'])
-    msg += f"- คาร์บ: {int(stats['carbs_g'])}/{int(profile['goal_carbs_g'])} g (ขาดอีก {int(diff_c)} g)\n"
+    goal_c = profile.get('goal_carbs_g') or 0
+    diff_c = get_diff(stats['carbs_g'], goal_c)
+    msg += f"- คาร์บ: {int(stats['carbs_g'])}/{int(goal_c)} g (ขาดอีก {int(diff_c)} g)\n"
     
     # Fat
-    diff_f = get_diff(stats['fat_g'], profile['goal_fat_g'])
-    msg += f"- ไขมัน: {int(stats['fat_g'])}/{int(profile['goal_fat_g'])} g (ขาดอีก {int(diff_f)} g)\n"
+    goal_f = profile.get('goal_fat_g') or 0
+    diff_f = get_diff(stats['fat_g'], goal_f)
+    msg += f"- ไขมัน: {int(stats['fat_g'])}/{int(goal_f)} g (ขาดอีก {int(diff_f)} g)\n"
     
     msg += f"\nสถิติร่างกาย:\n"
-    msg += f"- น้ำหนัก: {profile['weight_kg']} kg\n"
-    msg += f"- ไขมัน: {profile['body_fat_pct']}%\n"
+    msg += f"- น้ำหนัก: {profile.get('weight_kg', 0)} kg\n"
+    msg += f"- ไขมัน: {profile.get('body_fat_pct', 0)}%\n"
     
     if stats['missing_supplements']:
         msg += f"\nอาหารเสริมที่ยังไม่ได้ทาน:\n"
