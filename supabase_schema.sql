@@ -45,6 +45,7 @@ CREATE TABLE weight (
   id UUID PRIMARY KEY DEFAULT uuid_generate_v4(),
   log_ts TIMESTAMP NOT NULL,
   weight FLOAT NOT NULL,
+  body_fat_pct FLOAT,
   notes TEXT
 );
 

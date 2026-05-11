@@ -2,6 +2,8 @@ import streamlit as st
 import pandas as pd
 import numpy as np
 import plotly.express as px
+import os
+import json
 from datetime import datetime, timedelta
 from modules.database import get_db
 from modules.forms import SUPPLEMENT_MAP
@@ -60,7 +62,18 @@ def predict_target_date(df_weights, target=64.0):
         df['Days'] = (df['Date'] - first_date).dt.days
         x, y = df['Days'].values, df['Weight'].values
         
-        m, c = np.polyfit(x, y, 1)
+        # Check for sufficient variance and unique points
+        if len(np.unique(x)) <= 1 or np.var(x) == 0:
+            return "Collecting data for predictions..."
+
+        import warnings
+        with warnings.catch_warnings():
+            warnings.filterwarnings('error', category=np.RankWarning)
+            warnings.filterwarnings('error', category=RuntimeWarning)
+            try:
+                m, c = np.polyfit(x, y, 1)
+            except (np.RankWarning, RuntimeWarning):
+                return "Collecting data for predictions..."
         
         # Trend checks
         if m >= 0 and target < y[-1]: return "Weight is increasing/stable"
@@ -149,7 +162,7 @@ def render_analytics():
                 color_discrete_sequence=['#F5A623']
             )
             fig_bf.update_traces(mode='lines+markers')
-            st.plotly_chart(fig_bf, use_container_width=True)
+            st.plotly_chart(fig_bf, width='stretch')
         else:
             st.info("Log body fat to see the trend chart.")
 
@@ -246,7 +259,7 @@ def render_nutrition_analysis():
         )
         fig_ms.update_yaxes(range=[0, 10.5]) # Score is 1-10, give some breathing room
         fig_ms.add_hline(y=7, line_dash="dash", line_color="gray", annotation_text="Good")
-        st.plotly_chart(fig_ms, use_container_width=True)
+        st.plotly_chart(fig_ms, width='stretch')
 
     st.divider()
     st.subheader("💊 Supplement Compliance (last 30 days)")
@@ -277,7 +290,7 @@ def render_nutrition_analysis():
             labels={"Compliance (%)": "Days taken (%)"}
         )
         fig_comp.update_layout(showlegend=False, coloraxis_showscale=False)
-        st.plotly_chart(fig_comp, use_container_width=True)
+        st.plotly_chart(fig_comp, width='stretch')
     else:
         st.info("No supplement data yet.")
 
@@ -369,14 +382,14 @@ def render_overview():
 
     with c4:
         if not weight_today.empty:
-            w = weight_today.iloc[-1]['Weight']
+            w = weight_today.iloc[-1]['weight']
             st.metric("⚖️ Weight", f"{w} kg")
         else:
             st.metric("⚖️ Weight", "Not logged")
 
     with c5:
         if not nut_today.empty:
-            cal = int(nut_today.iloc[-1]['Calories (kcal)'])
+            cal = int(nut_today.iloc[-1]['calories'])
             st.metric("🍱 Calories", f"{cal} kcal", delta=f"{cal - GOAL_CALORIES} vs Goal")
         else:
             st.metric("🍱 Calories", "Not logged")
@@ -391,13 +404,12 @@ def render_overview():
             
             m1, m2, m3 = st.columns(3)
             with m1:
-                p = latest_nut.get('Protein (g)', 0)
+                p = int(latest_nut.get('protein_g', 0))
                 st.metric("Protein", f"{p}g", delta=f"{p - GOAL_PROTEIN}g vs Goal")
             with m2:
-                st.metric("Carbs", f"{latest_nut.get('Carbs (g)', 0)}g")
+                st.metric("Carbs", f"{int(latest_nut.get('carbs_g', 0))}g")
             with m3:
-                st.metric("Fat", f"{latest_nut.get('Fat (g)', 0)}g")
-            
+                st.metric("Fat", f"{int(latest_nut.get('fat_g', 0))}g")
             st.divider()
             
             # Dynamic Supplement Status based on Profile Defaults
@@ -778,7 +790,7 @@ def render_wellness():
         return
 
     df = pd.DataFrame(wellness)
-    df['log_date'] = pd.to_datetime(df['log_date'])
+    df['log_date'] = pd.to_datetime(df['log_date'], format='ISO8601')
     df = df.sort_values('log_date')
 
     # Section A — Today's snapshot
@@ -937,7 +949,7 @@ def render_wellness():
         df_work['log_ts'] = pd.to_datetime(df_work['log_ts'], format='ISO8601', utc=True).dt.tz_convert(None)
         df_work['log_date'] = df_work['log_ts'].dt.date
         df_vol = df_work.groupby('log_date')['volume'].sum().reset_index()
-        df_vol['log_date'] = pd.to_datetime(df_vol['log_date'])
+        df_vol['log_date'] = pd.to_datetime(df_vol['log_date'], format='ISO8601')
         df_vol['next_date'] = df_vol['log_date']
         df['log_date_only'] = df['log_date'].dt.date
         df_vol['log_date_only'] = df_vol['log_date'].dt.date

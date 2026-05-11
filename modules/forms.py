@@ -98,8 +98,18 @@ def render_workout_form():
             
         st.session_state.work_draft_loaded = True
 
+    # --- Standardized Widget Initialization ---
+    if "work_date" not in st.session_state:
+        st.session_state.work_date = datetime.now().date()
+    if "work_time" not in st.session_state:
+        st.session_state.work_time = datetime.now().time()
+    if "work_plan_name" not in st.session_state:
+        st.session_state.work_plan_name = plan_names[0]
+
     def save_workout_draft():
-        curr_plan = st.session_state.work_plan_name
+        curr_plan = st.session_state.get("work_plan_name")
+        if not curr_plan:
+            return
         selected_plan = next((p for p in plans if p['name'] == curr_plan), None)
         
         ex_data = {}
@@ -148,6 +158,18 @@ def render_workout_form():
         ex_n = ex['name']
         ex_t = ex['type']
 
+        # --- Standardized Widget Initialization ---
+        if f"work_s_{i}" not in st.session_state:
+            st.session_state[f"work_s_{i}"] = 0
+        if f"work_r_{i}" not in st.session_state:
+            st.session_state[f"work_r_{i}"] = 0
+        if ex_t == "Heavy":
+            if f"work_w_{i}" not in st.session_state:
+                st.session_state[f"work_w_{i}"] = 0.0
+        elif ex_t == "Timed":
+            if f"work_d_{i}" not in st.session_state:
+                st.session_state[f"work_d_{i}"] = 0
+
         st.markdown(f"#### {ex_n} ({ex_t})")
         history = db.fetch_exercise_history(ex_n)
         if history:
@@ -179,7 +201,10 @@ def render_workout_form():
             w = 0.0
             d = 0
 
-        rpe = st.slider("Intensity (RPE)", 1.0, 10.0, 7.0, 0.5, key=f"work_rpe_{i}", on_change=save_workout_draft)
+        rpe_key = f"work_rpe_{i}"
+        if rpe_key not in st.session_state:
+            st.session_state[rpe_key] = 7.0
+        rpe = st.slider("Intensity (RPE)", 1.0, 10.0, step=0.5, key=rpe_key, on_change=save_workout_draft)
         session_results.append({"name": ex_n, "type": ex_t, "w": w, "s": s, "r": r, "d": d, "rpe": rpe})
         st.divider()
 
@@ -271,6 +296,22 @@ def render_running_form():
         }
         db.save_draft(form_key, data)
 
+    # --- Standardized Widget Initialization ---
+    if "run_date" not in st.session_state:
+        st.session_state.run_date = datetime.now().date()
+    if "run_time" not in st.session_state:
+        st.session_state.run_time = datetime.now().time()
+    if "run_cat" not in st.session_state:
+        st.session_state.run_cat = "Easy"
+    if "run_dist" not in st.session_state:
+        st.session_state.run_dist = 0.0
+    if "run_dur" not in st.session_state:
+        st.session_state.run_dur = "00:00"
+    if "run_hr" not in st.session_state:
+        st.session_state.run_hr = 0
+    if "run_hrr" not in st.session_state:
+        st.session_state.run_hrr = 0
+
     col_d, col_t = st.columns(2)
     with col_d:
         l_date = st.date_input("Date", key="run_date", on_change=save_run_draft)
@@ -300,13 +341,15 @@ def render_running_form():
             log_ts = get_timestamp(l_date, l_time)
             try:
                 p = dur.split(":")
-                mins, secs = (int(p[0]), int(p[1])) if len(p) == 2 else (0, 0)
-                tot_s = mins * 60 + secs
+                mins, secs = (float(p[0]), float(p[1])) if len(p) == 2 else (0.0, 0.0)
+                duration_min = mins + (secs / 60.0)
 
                 pace_s = "0:00"
-                if dist > 0:
-                    p_s = tot_s / dist
-                    pace_s = f"{int(p_s // 60)}:{int(p_s % 60):02d}"
+                if float(dist) > 0:
+                    pace_decimal = duration_min / float(dist)
+                    p_mins = int(pace_decimal)
+                    p_secs = int((pace_decimal - p_mins) * 60)
+                    pace_s = f"{p_mins}:{p_secs:02d}"
 
                 run_data = {
                     "log_ts": log_ts,
@@ -438,6 +481,24 @@ def render_biohack_form():
         st.session_state.nut_meal_score = draft.get("meal_score", 5)
         st.session_state.nut_draft_loaded = True
 
+    # --- Standardized Widget Initialization ---
+    if "nut_date" not in st.session_state:
+        st.session_state.nut_date = datetime.now().date()
+    if "nut_time" not in st.session_state:
+        st.session_state.nut_time = datetime.now().time()
+    if "nut_food_name" not in st.session_state:
+        st.session_state.nut_food_name = ""
+    if "nut_cal" not in st.session_state:
+        st.session_state.nut_cal = 0
+    if "nut_pg" not in st.session_state:
+        st.session_state.nut_pg = 0
+    if "nut_cg" not in st.session_state:
+        st.session_state.nut_cg = 0
+    if "nut_fg" not in st.session_state:
+        st.session_state.nut_fg = 0
+    if "nut_meal_score" not in st.session_state:
+        st.session_state.nut_meal_score = 5
+
     def save_nut_draft():
         data = {
             "date": str(st.session_state.nut_date),
@@ -484,9 +545,9 @@ def render_biohack_form():
             cols = st.columns(len(row_keys))
             for col, json_key in zip(cols, row_keys):
                 display, sess_key, db_col = SUPPLEMENT_MAP[json_key]
-                # Default to profile setting if no draft exists
-                default_val = st.session_state.get(sess_key, json_key in default_sups)
-                col.checkbox(display, value=default_val, key=sess_key, on_change=save_nut_draft)
+                if sess_key not in st.session_state:
+                    st.session_state[sess_key] = json_key in default_sups
+                col.checkbox(display, key=sess_key, on_change=save_nut_draft)
 
     st.divider()
     st.markdown("### Energy & Macros")
@@ -501,7 +562,6 @@ def render_biohack_form():
     meal_score = st.slider(
         "Rate today's nutrition (1 = terrible, 10 = perfect)",
         min_value=1, max_value=10,
-        value=int(st.session_state.get("nut_meal_score", 5)),
         step=1,
         key="nut_meal_score",
         on_change=save_nut_draft
@@ -568,6 +628,16 @@ def render_weight_form():
         st.session_state.weight_notes = draft.get("weight_notes", "")
         st.session_state.weight_draft_loaded = True
 
+    # --- Standardized Widget Initialization ---
+    if "weight_date" not in st.session_state:
+        st.session_state.weight_date = datetime.now().date()
+    if "weight_time" not in st.session_state:
+        st.session_state.weight_time = datetime.now().time()
+    if "weight_kg" not in st.session_state:
+        st.session_state.weight_kg = 0.0
+    if "weight_notes" not in st.session_state:
+        st.session_state.weight_notes = ""
+
     def save_weight_draft():
         data = {
             "date": str(st.session_state.weight_date),
@@ -625,6 +695,138 @@ def render_weight_form():
             st.session_state.pop("weight_show_confirm", None)
             st.session_state.pop("weight_pending_date", None)
             st.rerun()
+
+def process_pending_workout(db, session_state):
+    """Constructs and saves workout data from session state."""
+    plans = db.fetch_plans()
+    curr_plan = session_state.get("work_plan_name", "")
+    selected_plan_obj = next((p for p in plans if p["name"] == curr_plan), None)
+    work_date = session_state.get("work_date")
+    work_time = session_state.get("work_time")
+
+    if selected_plan_obj and work_date and work_time:
+        log_ts = f"{work_date} {work_time.strftime('%H:%M:%S')}"
+        
+        bw = session_state.get("bodyweight_kg")
+        if not bw or float(bw) == 0.0:
+            profile = db.fetch_profile()
+            bodyweight_kg = float(profile.get("weight_kg", 0.0)) if profile else 0.0
+        else:
+            bodyweight_kg = float(bw)
+
+        final_rows = []
+        for i, ex in enumerate(selected_plan_obj["exercises"]):
+            ex_t = ex["type"]
+            s = int(session_state.get(f"work_s_{i}", 0))
+            r = int(session_state.get(f"work_r_{i}", 0))
+            d = int(session_state.get(f"work_d_{i}", 0))
+            w = float(session_state.get(f"work_w_{i}", 0.0)) if ex_t == "Heavy" else 0.0
+            rpe = float(session_state.get(f"work_rpe_{i}", 7.0))
+            if s > 0:
+                if ex_t == "Bodyweight":
+                    volume = bodyweight_kg * s * r
+                elif ex_t == "Timed":
+                    volume = bodyweight_kg * s * (d / 60)
+                else:
+                    volume = w * s * r
+                final_rows.append({
+                    "log_ts": log_ts,
+                    "plan_name": curr_plan,
+                    "exercise": ex["name"],
+                    "weight": w,
+                    "sets": s,
+                    "reps": r,
+                    "rpe": rpe,
+                    "volume": volume,
+                    "duration_sec": d
+                })
+        if final_rows:
+            form_key = f"draft_workout_{session_state.get('user_id', 'default')}"
+            if db.save_workout(final_rows):
+                session_state["_pending_success"] = f"✅ Session saved: {len(final_rows)} exercises logged."
+                db.clear_draft(form_key)
+                session_state.pop("work_draft_loaded", None)
+        else:
+            session_state["_pending_warning"] = "No exercises with sets > 0. Nothing saved."
+
+def process_pending_run(db, session_state):
+    """Constructs and saves run/movement data from session state."""
+    run_date = session_state.get("run_date")
+    run_time = session_state.get("run_time")
+    _dist = float(session_state.get("run_dist", 0.0))
+    _dur = str(session_state.get("run_dur", "00:00"))
+    _hr = int(session_state.get("run_hr", 0))
+    _hrr = int(session_state.get("run_hrr", 0))
+    _cat = str(session_state.get("run_cat", "Easy"))
+
+    if run_date and run_time:
+        log_ts = f"{run_date} {run_time.strftime('%H:%M:%S')}"
+        try:
+            p = _dur.split(":")
+            mins, secs = (float(p[0]), float(p[1])) if len(p) == 2 else (0.0, 0.0)
+            duration_min = mins + (secs / 60.0)
+
+            pace_s = "0:00"
+            if float(_dist) > 0:
+                pace_decimal = duration_min / float(_dist)
+                p_mins = int(pace_decimal)
+                p_secs = int((pace_decimal - p_mins) * 60)
+                pace_s = f"{p_mins}:{p_secs:02d}"
+
+            run_data = {
+                "log_ts": log_ts, "distance": _dist, "duration": _dur,
+                "pace": pace_s, "hr": _hr, "hrr": _hrr, "category": _cat
+            }
+            form_key = f"draft_run_{session_state.get('user_id', 'default')}"
+            if db.save_run(run_data):
+                session_state["_pending_success"] = "✅ Movement session logged."
+                db.clear_draft(form_key)
+                session_state.pop("run_draft_loaded", None)
+        except Exception:
+            session_state["_pending_warning"] = "Use MM:SS format for duration."
+
+def process_pending_nutrition(db, session_state):
+    """Constructs and saves nutrition data from session state."""
+    nut_date = session_state.get("nut_date")
+    nut_time = session_state.get("nut_time")
+
+    if nut_date and nut_time:
+        log_ts = f"{nut_date} {nut_time.strftime('%H:%M:%S')}"
+        nut_data = {
+            "log_ts": log_ts,
+            "food_name": str(session_state.get("nut_food_name", "")),
+            "calories": int(session_state.get("nut_cal", 0)),
+            "protein_g": int(session_state.get("nut_pg", 0)),
+            "carbs_g": int(session_state.get("nut_cg", 0)),
+            "fat_g": int(session_state.get("nut_fg", 0)),
+            "meal_score": int(session_state.get("nut_meal_score", 5)),
+        }
+        for json_key, (display, sess_key, db_col) in SUPPLEMENT_MAP.items():
+            nut_data[db_col] = bool(session_state.get(sess_key, False))
+
+        form_key = f"draft_nutrition_{session_state.get('user_id', 'default')}"
+        if db.save_nutrition(nut_data):
+            session_state["_pending_success"] = "✅ Nutrition data saved."
+            db.clear_draft(form_key)
+            session_state.pop("nut_draft_loaded", None)
+
+def process_pending_weight(db, session_state):
+    """Constructs and saves weight data from session state."""
+    weight_date = session_state.get("weight_date")
+    weight_time = session_state.get("weight_time")
+
+    if weight_date and weight_time:
+        log_ts = f"{weight_date} {weight_time.strftime('%H:%M:%S')}"
+        weight_data = {
+            "log_ts": log_ts,
+            "weight": float(session_state.get("weight_kg", 0.0)),
+            "notes": str(session_state.get("weight_notes", ""))
+        }
+        form_key = f"draft_weight_{session_state.get('user_id', 'default')}"
+        if db.save_weight(weight_data):
+            session_state["_pending_success"] = "✅ Weight logged."
+            db.clear_draft(form_key)
+            session_state.pop("weight_draft_loaded", None)
 
 def render_profile_form():
     db = get_db()

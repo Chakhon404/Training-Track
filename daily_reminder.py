@@ -15,11 +15,13 @@ SUPABASE_KEY = os.getenv("SUPABASE_KEY")
 LINE_CHANNEL_ACCESS_TOKEN = os.getenv("LINE_CHANNEL_ACCESS_TOKEN")
 LINE_USER_ID = os.getenv("LINE_USER_ID")
 
-def get_daily_status():
-    if not SUPABASE_URL or not SUPABASE_KEY:
-        return None, None
-        
-    supabase: Client = create_client(SUPABASE_URL, SUPABASE_KEY)
+def get_daily_status(supabase_client: Client = None):
+    if not supabase_client:
+        if not SUPABASE_URL or not SUPABASE_KEY:
+            return None, None
+        supabase: Client = create_client(SUPABASE_URL, SUPABASE_KEY)
+    else:
+        supabase = supabase_client
 
     # 1. จัดการเรื่องวันที่ (Bangkok Time)
     tz_bkk = pytz.timezone('Asia/Bangkok')
@@ -31,8 +33,10 @@ def get_daily_status():
         return None, None
     profile = profile_res.data
 
-    # 3. ดึงข้อมูล Nutrition โดยใช้ log_date (เพื่อให้ตรงกับข้อมูลที่คุณบันทึก)
-    nut_res = supabase.table("nutrition").select("*").eq("log_date", today).execute()
+    # 3. ดึงข้อมูล Nutrition โดยใช้ log_ts เป็นช่วงเวลา
+    start_time = f"{today} 00:00:00"
+    end_time = f"{today} 23:59:59"
+    nut_res = supabase.table("nutrition").select("*").gte("log_ts", start_time).lte("log_ts", end_time).execute()
 
     # 4. สรุปผล Macros
     stats = {
@@ -43,13 +47,15 @@ def get_daily_status():
     }
 
     # 5. เช็ครายการอาหารเสริม (Supplements)
+    from modules.forms import SUPPLEMENT_MAP
     default_sups = profile.get("default_supplements", [])
     taken_sups = set()
     
     for entry in nut_res.data:
         for sup in default_sups:
-            # เช็คว่าคอลัมน์อาหารเสริมตัวนั้นเป็น true หรือไม่ (Boolean)
-            if entry.get(sup) is True: 
+            # sup is the json_key, we need the db_column from SUPPLEMENT_MAP
+            db_col = SUPPLEMENT_MAP.get(sup, [None, None, sup])[2]
+            if entry.get(db_col) is True: 
                 taken_sups.add(sup)
 
     missing_sups = [s for s in default_sups if s not in taken_sups]
