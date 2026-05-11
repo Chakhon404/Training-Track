@@ -343,7 +343,6 @@ def render_biohack_form():
         if st.button("📋 Fill Form from JSON", key="nut_json_fill"):
             if json_input.strip():
                 try:
-                    import json
                     data = json.loads(json_input)
 
                     # Parse date
@@ -375,9 +374,6 @@ def render_biohack_form():
                     # Parse meal_score
                     if "meal_score" in data:
                         st.session_state.nut_meal_score = int(data["meal_score"])
-
-                    # Reset draft loaded so form re-initializes from session state
-                    st.session_state.pop("nut_draft_loaded", None)
 
                     st.success("✅ Form filled! Review below and click Save.")
                     st.rerun()
