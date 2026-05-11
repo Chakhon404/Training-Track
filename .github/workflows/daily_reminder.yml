@@ -26,7 +26,7 @@ jobs:
 
       - name: Install dependencies
         run: |
-          pip install requests google-genai supabase python-dotenv
+          pip install requests supabase python-dotenv
 
       - name: Run reminder script
         env:
