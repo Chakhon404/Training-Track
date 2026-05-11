@@ -89,7 +89,7 @@ def render_analytics():
         if not df_weight.empty:
             df_weight = df_weight.rename(columns={'log_ts': 'Date', 'weight': 'Weight'})
             df_weight = safe_numeric(df_weight, ['Weight', 'body_fat_pct'])
-            df_weight['Date'] = pd.to_datetime(df_weight['Date'], format='ISO8601', errors='coerce')
+            df_weight['Date'] = pd.to_datetime(df_weight['Date'], format='ISO8601', utc=True).dt.tz_convert(None)
             df_weight = df_weight.sort_values('Date')
 
     # 1. Metrics Row
@@ -188,6 +188,8 @@ def render_nutrition_analysis():
         'fat_g': 'Fat (g)'
     })
     
+    # Date processing with TZ strip
+    df_nut['Date_dt'] = pd.to_datetime(df_nut['Date'], format='ISO8601', utc=True).dt.tz_convert(None)
     df_nut = safe_numeric(df_nut, ['Calories (kcal)', 'Protein (g)', 'Carbs (g)', 'Fat (g)'])
     latest = df_nut.iloc[-1]
     
@@ -233,11 +235,13 @@ def render_nutrition_analysis():
         st.divider()
         st.subheader("⭐ Meal Score Trend")
         # Ensure we drop NaNs for the chart and sort by Date
-        plot_ms_df = df_nut.dropna(subset=['meal_score']).sort_values('Date')
+        plot_ms_df = df_nut.dropna(subset=['meal_score']).copy()
+        plot_ms_df['Date_plot'] = pd.to_datetime(plot_ms_df['Date'], format='ISO8601', utc=True).dt.tz_convert(None)
+        plot_ms_df = plot_ms_df.sort_values('Date_plot')
         fig_ms = px.line(
             plot_ms_df,
-            x='Date', y='meal_score',
-            labels={'Date': 'Date', 'meal_score': 'Meal Score'},
+            x='Date_plot', y='meal_score',
+            labels={'Date_plot': 'Date', 'meal_score': 'Meal Score'},
             color_discrete_sequence=['#F5A623']
         )
         fig_ms.update_yaxes(range=[0, 10.5]) # Score is 1-10, give some breathing room
@@ -296,10 +300,10 @@ def render_overview():
         df_nut = pd.DataFrame(nutrition_logs)
         df_run = pd.DataFrame(runs)
 
-        # Parse timestamps with format='ISO8601'
+        # Date processing with TZ strip
         for df in [df_work, df_weight, df_nut, df_run]:
             if not df.empty and 'log_ts' in df.columns:
-                df['log_ts'] = pd.to_datetime(df['log_ts'], format='ISO8601')
+                df['log_ts'] = pd.to_datetime(df['log_ts'], format='ISO8601', utc=True).dt.tz_convert(None)
                 df['date'] = df['log_ts'].dt.date
 
         # Filter today
@@ -365,14 +369,14 @@ def render_overview():
 
     with c4:
         if not weight_today.empty:
-            w = weight_today.iloc[-1]['weight']
+            w = weight_today.iloc[-1]['Weight']
             st.metric("⚖️ Weight", f"{w} kg")
         else:
             st.metric("⚖️ Weight", "Not logged")
 
     with c5:
         if not nut_today.empty:
-            cal = int(nut_today.iloc[-1]['calories'])
+            cal = int(nut_today.iloc[-1]['Calories (kcal)'])
             st.metric("🍱 Calories", f"{cal} kcal", delta=f"{cal - GOAL_CALORIES} vs Goal")
         else:
             st.metric("🍱 Calories", "Not logged")
@@ -387,12 +391,12 @@ def render_overview():
             
             m1, m2, m3 = st.columns(3)
             with m1:
-                p = latest_nut.get('protein_g', 0)
+                p = latest_nut.get('Protein (g)', 0)
                 st.metric("Protein", f"{p}g", delta=f"{p - GOAL_PROTEIN}g vs Goal")
             with m2:
-                st.metric("Carbs", f"{latest_nut.get('carbs_g', 0)}g")
+                st.metric("Carbs", f"{latest_nut.get('Carbs (g)', 0)}g")
             with m3:
-                st.metric("Fat", f"{latest_nut.get('fat_g', 0)}g")
+                st.metric("Fat", f"{latest_nut.get('Fat (g)', 0)}g")
             
             st.divider()
             
@@ -447,7 +451,7 @@ def render_overview():
     vol_data = db.fetch_weekly_volume()
     if vol_data:
         df_vol = pd.DataFrame(vol_data)
-        df_vol['log_ts'] = pd.to_datetime(df_vol['log_ts'], format='ISO8601')
+        df_vol['log_ts'] = pd.to_datetime(df_vol['log_ts'], format='ISO8601', utc=True).dt.tz_convert(None)
         df_vol['week'] = df_vol['log_ts'].dt.isocalendar().week
         df_vol['year'] = df_vol['log_ts'].dt.isocalendar().year
         
@@ -498,7 +502,7 @@ def render_data_manager():
     with st.expander("🏋️ Workout Entries", expanded=False):
         df = pd.DataFrame(db.fetch_workouts())
         if not df.empty:
-            df['log_ts'] = pd.to_datetime(df['log_ts'], format='ISO8601')
+            df['log_ts'] = pd.to_datetime(df['log_ts'], format='ISO8601', utc=True).dt.tz_convert(None)
             df_display = df[['log_ts', 'exercise', 'weight', 'sets', 'reps', 'rpe', 'volume']].copy()
             df_display = df_display.sort_values('log_ts', ascending=False).reset_index(drop=True)
 
@@ -537,7 +541,7 @@ def render_data_manager():
     with st.expander("🏃 Movement Entries", expanded=False):
         df = pd.DataFrame(db.fetch_runs())
         if not df.empty:
-            df['log_ts'] = pd.to_datetime(df['log_ts'], format='ISO8601')
+            df['log_ts'] = pd.to_datetime(df['log_ts'], format='ISO8601', utc=True).dt.tz_convert(None)
             df_display = df[['log_ts', 'category', 'distance', 'duration', 'pace', 'hr']].copy()
             df_display = df_display.sort_values('log_ts', ascending=False).reset_index(drop=True)
 
@@ -574,7 +578,7 @@ def render_data_manager():
     with st.expander("🍱 Nutrition Entries", expanded=False):
         df = pd.DataFrame(db.fetch_nutrition())
         if not df.empty:
-            df['log_ts'] = pd.to_datetime(df['log_ts'], format='ISO8601')
+            df['log_ts'] = pd.to_datetime(df['log_ts'], format='ISO8601', utc=True).dt.tz_convert(None)
             display_cols = ['log_ts', 'food_name', 'calories', 'protein_g', 'carbs_g', 'fat_g', 'meal_score']
             available = [c for c in display_cols if c in df.columns]
             df_display = df[available].copy()
@@ -613,7 +617,7 @@ def render_data_manager():
     with st.expander("⚖️ Weight Entries", expanded=False):
         df = pd.DataFrame(db.fetch_weight())
         if not df.empty:
-            df['log_ts'] = pd.to_datetime(df['log_ts'], format='ISO8601')
+            df['log_ts'] = pd.to_datetime(df['log_ts'], format='ISO8601', utc=True).dt.tz_convert(None)
             df_display = df[['log_ts', 'weight', 'notes']].copy()
             df_display = df_display.sort_values('log_ts', ascending=False).reset_index(drop=True)
 
@@ -844,22 +848,34 @@ def render_wellness():
                             db_key = "multivitamin" if k == "multi_vitamin" else k
                             nut_payload[db_key] = bool(v)
                             
-                        # Perform Upsert using log_date logic if available
-                        db = get_db()
-                        # The user asked to use log_date as conflict target. 
-                        # We will attempt to use it, but fallback to log_ts if needed or just use log_ts as a proxy.
-                        # Note: log_ts includes time, so multiple imports on same day with different times won't conflict.
-                        # To truly respect 'log_date' as conflict target, we'd need that column.
-                        # For now, we will add log_date to payload and try.
-                        nut_payload["log_date"] = log_date
-                        
-                        res = db.supabase.table("nutrition").upsert(nut_payload, on_conflict="log_date").execute()
-                        
+                        # Perform Update/Insert manually without log_date column
+                        nut_payload.pop("log_date", None)
+
+                        # Check if entry already exists for this date (by log_ts date prefix)
+                        existing = db.supabase.table("nutrition")\
+                            .select("id")\
+                            .gte("log_ts", f"{log_date}T00:00:00")\
+                            .lte("log_ts", f"{log_date}T23:59:59")\
+                            .execute()
+
+                        if existing.data:
+                            # Update existing entry
+                            entry_id = existing.data[0]["id"]
+                            res = db.supabase.table("nutrition")\
+                                .update(nut_payload)\
+                                .eq("id", entry_id)\
+                                .execute()
+                        else:
+                            # Insert new entry
+                            res = db.supabase.table("nutrition")\
+                                .insert(nut_payload)\
+                                .execute()
+
                         if res.data:
                             st.success(f"✅ Data imported/updated for {log_date}")
                             st.rerun()
                         else:
-                            st.error("❌ Import failed (Check if 'log_date' unique index exists).")
+                            st.error("❌ Import failed. Check Supabase logs.")
                             
                     except Exception as e:
                         st.error(f"❌ Error: {str(e)}")
@@ -918,7 +934,7 @@ def render_wellness():
     workouts = db.fetch_workouts()
     if workouts:
         df_work = pd.DataFrame(workouts)
-        df_work['log_ts'] = pd.to_datetime(df_work['log_ts'], format='ISO8601')
+        df_work['log_ts'] = pd.to_datetime(df_work['log_ts'], format='ISO8601', utc=True).dt.tz_convert(None)
         df_work['log_date'] = df_work['log_ts'].dt.date
         df_vol = df_work.groupby('log_date')['volume'].sum().reset_index()
         df_vol['log_date'] = pd.to_datetime(df_vol['log_date'])
