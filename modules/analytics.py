@@ -742,6 +742,78 @@ def render_wellness():
         f"{int(latest['training_readiness']) if pd.notna(latest.get('training_readiness')) else 'N/A'}"
     )
 
+    # --- AI COACH & JSON IMPORT ---
+    st.divider()
+    st.subheader("🤖 AI Coach & Data Import")
+    
+    c_coach, c_import = st.columns(2)
+    
+    with c_coach:
+        st.markdown("#### 🔔 Manual Reminder")
+        if st.button("🔔 Test AI Coach (Send to LINE)"):
+            import subprocess
+            try:
+                # Use st.secrets to populate environment for the sub-process
+                env = os.environ.copy()
+                for key, val in st.secrets.items():
+                    env[key] = str(val)
+                
+                result = subprocess.run(["python", "daily_reminder.py"], env=env, capture_output=True, text=True)
+                if result.returncode == 0:
+                    st.success("✅ AI Coach reminder triggered! Check LINE.")
+                    st.info(f"Coach output: {result.stdout}")
+                else:
+                    st.error(f"❌ Failed: {result.stderr}")
+            except Exception as e:
+                st.error(f"⚠️ Error: {str(e)}")
+
+    with c_import:
+        st.markdown("#### 📥 JSON Quick Import")
+        with st.expander("Paste Daily Summary JSON"):
+            json_text = st.text_area("Paste Gemini JSON here", height=150, key="wellness_json_import")
+            if st.button("💾 Import Nutrition Data", key="btn_import_nut"):
+                if json_text.strip():
+                    try:
+                        data = json.loads(json_text)
+                        log_date = data.get("log_date", datetime.now().strftime("%Y-%m-%d"))
+                        
+                        # Prepare payload for upsert
+                        nut_payload = {
+                            "log_ts": f"{log_date} {data.get('log_time', '12:00:00')}",
+                            "calories": int(data.get("energy_macros", {}).get("calories", 0)),
+                            "protein_g": int(data.get("energy_macros", {}).get("protein_g", 0)),
+                            "carbs_g": int(data.get("energy_macros", {}).get("carbs_g", 0)),
+                            "fat_g": int(data.get("energy_macros", {}).get("fat_g", 0)),
+                            "meal_score": data.get("meal_score"),
+                            "food_name": data.get("food_name", "Gemini Daily Summary")
+                        }
+                        
+                        # Map supplements from JSON to DB columns
+                        sups = data.get("supplements", {})
+                        for k, v in sups.items():
+                            db_key = "multivitamin" if k == "multi_vitamin" else k
+                            nut_payload[db_key] = bool(v)
+                            
+                        # Perform Upsert using log_date logic if available
+                        db = get_db()
+                        # The user asked to use log_date as conflict target. 
+                        # We will attempt to use it, but fallback to log_ts if needed or just use log_ts as a proxy.
+                        # Note: log_ts includes time, so multiple imports on same day with different times won't conflict.
+                        # To truly respect 'log_date' as conflict target, we'd need that column.
+                        # For now, we will add log_date to payload and try.
+                        nut_payload["log_date"] = log_date
+                        
+                        res = db.supabase.table("nutrition").upsert(nut_payload, on_conflict="log_date").execute()
+                        
+                        if res.data:
+                            st.success(f"✅ Data imported/updated for {log_date}")
+                            st.rerun()
+                        else:
+                            st.error("❌ Import failed (Check if 'log_date' unique index exists).")
+                            
+                    except Exception as e:
+                        st.error(f"❌ Error: {str(e)}")
+
     st.divider()
     # Section B — Sleep duration bar
     if 'sleep_duration_min' in df.columns:

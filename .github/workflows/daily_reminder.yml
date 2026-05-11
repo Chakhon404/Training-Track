@@ -1,0 +1,38 @@
+name: Daily AI Coach Reminder
+
+on:
+  schedule:
+    # 06:30 Bangkok (UTC+7) = 23:30 UTC
+    - cron: '30 23 * * *'
+    # 09:30 Bangkok = 02:30 UTC
+    - cron: '30 2 * * *'
+    # 13:30 Bangkok = 06:30 UTC
+    - cron: '30 6 * * *'
+    # 20:00 Bangkok = 13:00 UTC
+    - cron: '0 13 * * *'
+  workflow_dispatch:
+
+jobs:
+  remind:
+    runs-on: ubuntu-latest
+    steps:
+      - name: Checkout code
+        uses: actions/checkout@v4
+
+      - name: Set up Python
+        uses: actions/setup-python@v4
+        with:
+          python-version: '3.10'
+
+      - name: Install dependencies
+        run: |
+          pip install requests google-generativeai supabase python-dotenv
+
+      - name: Run reminder script
+        env:
+          SUPABASE_URL: ${{ secrets.SUPABASE_URL }}
+          SUPABASE_KEY: ${{ secrets.SUPABASE_KEY }}
+          GEMINI_API_KEY: ${{ secrets.GEMINI_API_KEY }}
+          LINE_CHANNEL_ACCESS_TOKEN: ${{ secrets.LINE_CHANNEL_ACCESS_TOKEN }}
+          LINE_USER_ID: ${{ secrets.LINE_USER_ID }}
+        run: python daily_reminder.py
