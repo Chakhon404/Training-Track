@@ -137,6 +137,7 @@ def _handle_pending_confirmations(db):
 
    # ── NUTRITION ─────────────────────────────────────────
     if st.session_state.get("nut_confirm_overwrite"):
+        from modules.forms import SUPPLEMENT_MAP
         date_str = str(st.session_state.get("nut_date", ""))
         if st.session_state.pop("nut_do_overwrite", False):
             db.delete_nutrition_by_date(date_str)
@@ -149,16 +150,16 @@ def _handle_pending_confirmations(db):
             log_ts = f"{nut_date} {nut_time.strftime('%H:%M:%S')}"
             nut_data = {
                 "log_ts": log_ts,
+                "food_name": str(st.session_state.get("nut_food_name", "")),
                 "calories": int(st.session_state.get("nut_cal", 0)),
                 "protein_g": int(st.session_state.get("nut_pg", 0)),
                 "carbs_g": int(st.session_state.get("nut_cg", 0)),
                 "fat_g": int(st.session_state.get("nut_fg", 0)),
-                "creatine": bool(st.session_state.get("nut_crea", False)),
-                "protein_powder": bool(st.session_state.get("nut_prot", False)),
-                "multivitamin": bool(st.session_state.get("nut_vit", False)),
-                "omega3": bool(st.session_state.get("nut_omg", False)),
-                "meal_score": int(st.session_state.get("nut_meal_score", 5))
+                "meal_score": int(st.session_state.get("nut_meal_score", 5)),
             }
+            for json_key, (display, sess_key, db_col) in SUPPLEMENT_MAP.items():
+                nut_data[db_col] = bool(st.session_state.get(sess_key, False))
+
             form_key = f"draft_nutrition_{st.session_state.get('user_id', 'default')}"
             if db.save_nutrition(nut_data):
                 st.session_state["_pending_success"] = "✅ Nutrition data saved."
