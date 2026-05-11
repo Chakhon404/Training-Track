@@ -190,9 +190,10 @@ def render_nutrition_analysis():
     if 'meal_score' in df_nut.columns and df_nut['meal_score'].notna().any():
         st.divider()
         st.subheader("⭐ Meal Score Trend")
-        # Ensure we drop NaNs for the chart
+        # Ensure we drop NaNs for the chart and sort by Date
+        plot_ms_df = df_nut.dropna(subset=['meal_score']).sort_values('Date')
         fig_ms = px.line(
-            df_nut.dropna(subset=['meal_score']),
+            plot_ms_df,
             x='Date', y='meal_score',
             labels={'Date': 'Date', 'meal_score': 'Meal Score'},
             color_discrete_sequence=['#F5A623']
