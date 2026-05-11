@@ -1,8 +1,7 @@
 import os
 import requests
 import json
-from datetime import datetime
-from google import genai
+from datetime import datetime, timedelta, timezone
 from supabase import create_client, Client
 from dotenv import load_dotenv
 
@@ -12,72 +11,84 @@ load_dotenv()
 # Configuration
 SUPABASE_URL = os.getenv("SUPABASE_URL")
 SUPABASE_KEY = os.getenv("SUPABASE_KEY")
-GEMINI_API_KEY = os.getenv("GEMINI_API_KEY")
 LINE_CHANNEL_ACCESS_TOKEN = os.getenv("LINE_CHANNEL_ACCESS_TOKEN")
 LINE_USER_ID = os.getenv("LINE_USER_ID")
 
 def get_daily_status():
     supabase: Client = create_client(SUPABASE_URL, SUPABASE_KEY)
-    today = datetime.now().strftime("%Y-%m-%d")
     
-    # 1. Check Weight
-    weight_res = supabase.table("weight").select("*").gte("log_ts", f"{today}T00:00:00").execute()
-    has_weight = len(weight_res.data) > 0
+    # Bangkok Timezone (UTC+7)
+    tz_bkk = timezone(timedelta(hours=7))
+    now_bkk = datetime.now(tz_bkk)
+    today = now_bkk.strftime("%Y-%m-%d")
     
-    # 2. Check Nutrition (Protein & Supplements)
+    # 1. Fetch Latest Profile
+    profile_res = supabase.table("user_profile").select("*").order("updated_at", desc=True).limit(1).execute()
+    if not profile_res.data:
+        return None, None
+    profile = profile_res.data[0]
+    
+    # 2. Fetch Today's Nutrition
     nut_res = supabase.table("nutrition").select("*").gte("log_ts", f"{today}T00:00:00").execute()
     
-    total_protein = sum(item.get("protein_g", 0) for item in nut_res.data)
-    
-    # Target supplements from requirements
-    target_sups = {
-        "creatine": "Creatine",
-        "fish_oil": "Fish Oil",
-        "astaxanthin": "Astaxanthin",
-        "magnesium": "Magnesium",
-        "zinc": "Zinc",
-        "protein_powder": "Protein Powder",
-        "multivitamin": "Multi-Vitamin"
+    # Aggregate macros
+    stats = {
+        "calories": sum(item.get("calories", 0) or 0 for item in nut_res.data),
+        "protein_g": sum(item.get("protein_g", 0) or 0 for item in nut_res.data),
+        "carbs_g": sum(item.get("carbs_g", 0) or 0 for item in nut_res.data),
+        "fat_g": sum(item.get("fat_g", 0) or 0 for item in nut_res.data),
     }
     
-    sups_status = {k: False for k in target_sups.keys()}
-    
+    # Check supplements
+    default_sups = profile.get("default_supplements", [])
+    taken_sups = set()
     for entry in nut_res.data:
-        for sup in sups_status.keys():
-            db_key = "multivitamin" if sup == "multivitamin" else sup
-            if entry.get(db_key):
-                sups_status[sup] = True
+        for sup in default_sups:
+            if entry.get(sup):
+                taken_sups.add(sup)
                 
-    missing = []
-    if not has_weight: 
-        missing.append("ชั่งน้ำหนัก (Weight)")
-    if total_protein < 150: 
-        missing.append(f"โปรตีน (Protein) - ปัจจุบัน {total_protein}g / เป้าหมาย 150g")
+    missing_sups = [s for s in default_sups if s not in taken_sups]
+    stats["missing_supplements"] = missing_sups
     
-    for sup_key, taken in sups_status.items():
-        if not taken:
-            missing.append(f"อาหารเสริม: {target_sups[sup_key]}")
-            
-    return missing
+    return profile, stats
 
-def generate_coach_message(missing_items):
-    if not missing_items:
-        return "วันนี้ทำดีมากไอ้เสือ! ครบถ้วนทุกอย่าง ลุยต่อพรุ่งนี้! 🥊"
-        
-    client = genai.Client(api_key=GEMINI_API_KEY)
+def generate_summary_message(profile, stats):
+    if not profile or not stats:
+        return "ไม่พบข้อมูลโปรไฟล์หรือโภชนาการสำหรับวันนี้"
+
+    def get_diff(current, goal):
+        diff = goal - current
+        return max(0, diff)
+
+    msg = f"ชาคร\nสรุปโภชนาการวันนี้:\n"
     
-    prompt = f"""
-    You are a tough but caring Thai boxing coach. 
-    The player missed these tasks: {', '.join(missing_items)}. 
-    Write a motivating and slightly aggressive reminder in Thai to send via LINE. 
-    Keep it concise but powerful. Use boxing metaphors.
-    """
+    # Calories
+    diff_cal = get_diff(stats['calories'], profile['goal_calories'])
+    msg += f"- แคลอรี่: {int(stats['calories'])}/{int(profile['goal_calories'])} kcal (ขาดอีก {int(diff_cal)} kcal)\n"
     
-    response = client.models.generate_content(
-        model='gemini-1.5-flash',
-        contents=prompt
-    )
-    return response.text.strip()
+    # Protein
+    diff_p = get_diff(stats['protein_g'], profile['goal_protein_g'])
+    msg += f"- โปรตีน: {int(stats['protein_g'])}/{int(profile['goal_protein_g'])} g (ขาดอีก {int(diff_p)} g)\n"
+    
+    # Carbs
+    diff_c = get_diff(stats['carbs_g'], profile['goal_carbs_g'])
+    msg += f"- คาร์บ: {int(stats['carbs_g'])}/{int(profile['goal_carbs_g'])} g (ขาดอีก {int(diff_c)} g)\n"
+    
+    # Fat
+    diff_f = get_diff(stats['fat_g'], profile['goal_fat_g'])
+    msg += f"- ไขมัน: {int(stats['fat_g'])}/{int(profile['goal_fat_g'])} g (ขาดอีก {int(diff_f)} g)\n"
+    
+    msg += f"\nสถิติร่างกาย:\n"
+    msg += f"- น้ำหนัก: {profile['weight_kg']} kg\n"
+    msg += f"- ไขมัน: {profile['body_fat_pct']}%\n"
+    
+    if stats['missing_supplements']:
+        msg += f"\nอาหารเสริมที่ยังไม่ได้ทาน:\n"
+        for sup in stats['missing_supplements']:
+            msg += f"- {sup}\n"
+    
+    msg += f"\nสู้ๆ นะครับ!"
+    return msg
 
 def send_line_message(message):
     url = "https://api.line.me/v2/bot/message/push"
@@ -93,13 +104,13 @@ def send_line_message(message):
     return res.status_code == 200
 
 if __name__ == "__main__":
-    if not all([SUPABASE_URL, SUPABASE_KEY, GEMINI_API_KEY, LINE_CHANNEL_ACCESS_TOKEN, LINE_USER_ID]):
+    if not all([SUPABASE_URL, SUPABASE_KEY, LINE_CHANNEL_ACCESS_TOKEN, LINE_USER_ID]):
         print("Error: Missing environment variables.")
         exit(1)
         
-    missing = get_daily_status()
-    msg = generate_coach_message(missing)
+    profile, stats = get_daily_status()
+    msg = generate_summary_message(profile, stats)
     if send_line_message(msg):
-        print(f"Reminder sent successfully: {msg}")
+        print(f"Reminder sent successfully:\n{msg}")
     else:
         print("Failed to send reminder.")
