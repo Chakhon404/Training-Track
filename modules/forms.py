@@ -20,6 +20,7 @@ SUPPLEMENT_MAP = {
     "pre_workout":    ("Pre-Workout",    "nut_pre_workout",  "pre_workout"),
     "caffeine":       ("Caffeine",       "nut_caffeine",     "caffeine"),
     "probiotics":     ("Probiotics",     "nut_probiotics",   "probiotics"),
+    "b_complex":      ("B-Complex",      "nut_b_complex",    "b_complex"),
 }
 
 def get_timestamp(log_date, log_time):
