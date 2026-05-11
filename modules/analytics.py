@@ -201,18 +201,21 @@ def render_nutrition_analysis():
 
     st.divider()
     
-    # Supplement Status
+    # Dynamic Supplement Status based on Profile Defaults
     st.markdown("### Supplements")
-    s1, s2, s3, s4 = st.columns(4)
-    supps = [
-        ("Creatine", "creatine"),
-        ("Protein Powder", "protein_powder"),
-        ("Multivitamin", "multivitamin"),
-        ("Omega-3", "omega3")
-    ]
-    for col, (label, key) in zip([s1, s2, s3, s4], supps):
-        status = "✅" if latest.get(key) else "❌"
-        col.markdown(f"**{label}**: {status}")
+    default_sups = profile.get("default_supplements") or []
+    if not default_sups:
+        st.info("💡 No supplements configured in profile. Go to ⚙️ System → 👤 Edit Profile & Goals to add them.")
+    else:
+        cols_per_row = 4
+        for i in range(0, len(default_sups), cols_per_row):
+            row_keys = default_sups[i:i + cols_per_row]
+            cols = st.columns(len(row_keys))
+            for col, sup_key in zip(cols, row_keys):
+                if sup_key in SUPPLEMENT_MAP:
+                    display, _, db_col = SUPPLEMENT_MAP[sup_key]
+                    status = "✅" if latest.get(db_col) else "❌"
+                    col.markdown(f"**{display}**: {status}")
 
     st.divider()
     st.markdown("### Daily Progress (%)")
