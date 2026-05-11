@@ -186,6 +186,21 @@ def render_nutrition_analysis():
     
     st.bar_chart(pd.DataFrame(pct_data).set_index("Macro"), horizontal=True)
 
+    # Section: Meal Score Trend
+    if 'meal_score' in df_nut.columns and df_nut['meal_score'].notna().any():
+        st.divider()
+        st.subheader("⭐ Meal Score Trend")
+        # Ensure we drop NaNs for the chart
+        fig_ms = px.line(
+            df_nut.dropna(subset=['meal_score']),
+            x='Date', y='meal_score',
+            labels={'Date': 'Date', 'meal_score': 'Meal Score'},
+            color_discrete_sequence=['#F5A623']
+        )
+        fig_ms.update_yaxes(range=[0, 10.5]) # Score is 1-10, give some breathing room
+        fig_ms.add_hline(y=7, line_dash="dash", line_color="gray", annotation_text="Good")
+        st.plotly_chart(fig_ms, use_container_width=True)
+
 def render_overview():
     db = get_db()
     today = datetime.now().date()
