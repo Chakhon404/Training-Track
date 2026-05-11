@@ -484,7 +484,9 @@ def render_biohack_form():
             cols = st.columns(len(row_keys))
             for col, json_key in zip(cols, row_keys):
                 display, sess_key, db_col = SUPPLEMENT_MAP[json_key]
-                col.checkbox(display, key=sess_key, on_change=save_nut_draft)
+                # Default to profile setting if no draft exists
+                default_val = st.session_state.get(sess_key, json_key in default_sups)
+                col.checkbox(display, value=default_val, key=sess_key, on_change=save_nut_draft)
 
     st.divider()
     st.markdown("### Energy & Macros")
@@ -562,6 +564,7 @@ def render_weight_form():
         st.session_state.weight_date = datetime.strptime(draft.get("date", datetime.now().strftime("%Y-%m-%d")), "%Y-%m-%d").date()
         st.session_state.weight_time = datetime.strptime(draft.get("time", datetime.now().strftime("%H:%M:%S")), "%H:%M:%S").time()
         st.session_state.weight_kg = draft.get("weight_kg", 0.0)
+        st.session_state.weight_bf = draft.get("weight_bf", 0.0)
         st.session_state.weight_notes = draft.get("weight_notes", "")
         st.session_state.weight_draft_loaded = True
 
