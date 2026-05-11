@@ -525,7 +525,9 @@ def render_data_manager():
         df = pd.DataFrame(db.fetch_nutrition())
         if not df.empty:
             df['log_ts'] = pd.to_datetime(df['log_ts'], format='ISO8601')
-            df_display = df[['log_ts', 'calories', 'protein_g', 'carbs_g', 'fat_g', 'meal_score']].copy()
+            display_cols = ['log_ts', 'food_name', 'calories', 'protein_g', 'carbs_g', 'fat_g', 'meal_score']
+            available = [c for c in display_cols if c in df.columns]
+            df_display = df[available].copy()
             df_display = df_display.sort_values('log_ts', ascending=False).reset_index(drop=True)
 
             event = st.dataframe(
