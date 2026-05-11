@@ -397,6 +397,7 @@ def render_biohack_form():
         st.session_state.nut_pg = draft.get("p_g", 0)
         st.session_state.nut_cg = draft.get("c_g", 0)
         st.session_state.nut_fg = draft.get("f_g", 0)
+        st.session_state.nut_meal_score = draft.get("meal_score", 5)
         st.session_state.nut_draft_loaded = True
 
     def save_nut_draft():
@@ -410,7 +411,8 @@ def render_biohack_form():
             "cal": st.session_state.nut_cal,
             "p_g": st.session_state.nut_pg,
             "c_g": st.session_state.nut_cg,
-            "f_g": st.session_state.nut_fg
+            "f_g": st.session_state.nut_fg,
+            "meal_score": st.session_state.get("nut_meal_score", 5)
         }
         db.save_draft(form_key, data)
 
