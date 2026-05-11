@@ -1,122 +1,85 @@
 import os
 import requests
-import json
+from supabase import create_client
 from datetime import datetime, timedelta, timezone
-from supabase import create_client, Client
+import pytz
+import json
 from dotenv import load_dotenv
 
-# Load local .env for testing; GitHub Actions and Streamlit use their own secret managers
+# Load local .env for testing
 load_dotenv()
 
-# Configuration
-SUPABASE_URL = os.getenv("SUPABASE_URL")
-SUPABASE_KEY = os.getenv("SUPABASE_KEY")
-LINE_CHANNEL_ACCESS_TOKEN = os.getenv("LINE_CHANNEL_ACCESS_TOKEN")
-LINE_USER_ID = os.getenv("LINE_USER_ID")
-
-def get_daily_status():
-    supabase: Client = create_client(SUPABASE_URL, SUPABASE_KEY)
-    
+def debug_report():
     # Bangkok Timezone (UTC+7)
-    tz_bkk = timezone(timedelta(hours=7))
-    now_bkk = datetime.now(tz_bkk)
+    tz = pytz.timezone('Asia/Bangkok')
+    now_bkk = datetime.now(tz)
     today = now_bkk.strftime("%Y-%m-%d")
-    
-    # 1. Fetch Latest Profile
-    profile_res = supabase.table("user_profile").select("*").order("updated_at", desc=True).limit(1).execute()
-    if not profile_res.data:
-        return None, None
-    profile = profile_res.data[0]
-    
-    # 2. Fetch Today's Nutrition
-    nut_res = supabase.table("nutrition").select("*").gte("log_ts", f"{today}T00:00:00").execute()
-    
-    # Aggregate macros
-    stats = {
-        "calories": sum(item.get("calories", 0) or 0 for item in nut_res.data),
-        "protein_g": sum(item.get("protein_g", 0) or 0 for item in nut_res.data),
-        "carbs_g": sum(item.get("carbs_g", 0) or 0 for item in nut_res.data),
-        "fat_g": sum(item.get("fat_g", 0) or 0 for item in nut_res.data),
-    }
-    
-    # Check supplements
-    default_sups = profile.get("default_supplements", [])
-    taken_sups = set()
-    for entry in nut_res.data:
-        for sup in default_sups:
-            if entry.get(sup):
-                taken_sups.add(sup)
-                
-    missing_sups = [s for s in default_sups if s not in taken_sups]
-    stats["missing_supplements"] = missing_sups
-    
-    return profile, stats
+    print(f"🔍 DEBUG: กำลังตรวจสอบข้อมูลวันที่ {today}")
 
-def generate_summary_message(profile, stats):
-    if not profile or not stats:
-        return "ไม่พบข้อมูลโปรไฟล์หรือโภชนาการสำหรับวันนี้"
+    # 1. ทดสอบเชื่อมต่อ Supabase
+    try:
+        url = os.getenv("SUPABASE_URL")
+        key = os.getenv("SUPABASE_KEY")
+        if not url or not key:
+            print("❌ Error: Missing SUPABASE_URL or SUPABASE_KEY")
+            return
+            
+        supabase = create_client(url, key)
+        print("✅ Step 1: เชื่อมต่อ Supabase สำเร็จ")
 
-    def get_diff(current, goal):
-        goal = goal or 0
-        current = current or 0
-        diff = goal - current
-        return max(0, diff)
+        # 2. ตรวจสอบตาราง Profiles
+        # จาก schema ที่ตรวจพบ ใช้ชื่อตาราง 'user_profile'
+        target_table = "user_profile" 
+        prof_res = supabase.table(target_table).select("*").order("updated_at", desc=True).limit(1).maybe_single().execute()
+        
+        if not prof_res.data:
+            print(f"❌ Step 2: ไม่พบข้อมูลในตาราง '{target_table}'")
+            return "ไม่พบข้อมูลโปรไฟล์ใน Database"
+        
+        print(f"✅ Step 2: พบข้อมูลโปรไฟล์คุณ {target_table} ล่าสุด")
+        profile = prof_res.data
 
-    msg = f"ชาคร\nสรุปโภชนาการวันนี้:\n"
-    
-    # Calories
-    goal_cal = profile.get('goal_calories') or 0
-    diff_cal = get_diff(stats['calories'], goal_cal)
-    msg += f"- แคลอรี่: {int(stats['calories'])}/{int(goal_cal)} kcal (ขาดอีก {int(diff_cal)} kcal)\n"
-    
-    # Protein
-    goal_p = profile.get('goal_protein_g') or 0
-    diff_p = get_diff(stats['protein_g'], goal_p)
-    msg += f"- โปรตีน: {int(stats['protein_g'])}/{int(goal_p)} g (ขาดอีก {int(diff_p)} g)\n"
-    
-    # Carbs
-    goal_c = profile.get('goal_carbs_g') or 0
-    diff_c = get_diff(stats['carbs_g'], goal_c)
-    msg += f"- คาร์บ: {int(stats['carbs_g'])}/{int(goal_c)} g (ขาดอีก {int(diff_c)} g)\n"
-    
-    # Fat
-    goal_f = profile.get('goal_fat_g') or 0
-    diff_f = get_diff(stats['fat_g'], goal_f)
-    msg += f"- ไขมัน: {int(stats['fat_g'])}/{int(goal_f)} g (ขาดอีก {int(diff_f)} g)\n"
-    
-    msg += f"\nสถิติร่างกาย:\n"
-    msg += f"- น้ำหนัก: {profile.get('weight_kg', 0)} kg\n"
-    msg += f"- ไขมัน: {profile.get('body_fat_pct', 0)}%\n"
-    
-    if stats['missing_supplements']:
-        msg += f"\nอาหารเสริมที่ยังไม่ได้ทาน:\n"
-        for sup in stats['missing_supplements']:
-            msg += f"- {sup}\n"
-    
-    msg += f"\nสู้ๆ นะครับ!"
-    return msg
+        # 3. ตรวจสอบตาราง Nutrition
+        # จาก schema ใช้คอลัมน์ log_ts (timestamp)
+        nut_res = supabase.table("nutrition").select("*").gte("log_ts", f"{today}T00:00:00").execute()
+        if not nut_res.data:
+            print(f"⚠️ Step 3: วันนี้ ({today}) ยังไม่มีการบันทึกข้อมูลในตาราง nutrition")
+            msg = f"แจ้งเตือนคุณชาคร: วันนี้ยังไม่มีข้อมูลบันทึกเลยครับ!"
+        else:
+            print(f"✅ Step 3: พบข้อมูลการกินของวันนี้ ({len(nut_res.data)} รายการ)")
+            msg = "รายงานคุณชาคร: วันนี้วินัยยอดเยี่ยมครับ (ทดสอบ)"
 
-def send_line_message(message):
-    url = "https://api.line.me/v2/bot/message/push"
-    headers = {
-        "Content-Type": "application/json",
-        "Authorization": f"Bearer {LINE_CHANNEL_ACCESS_TOKEN}"
-    }
-    payload = {
-        "to": LINE_USER_ID,
-        "messages": [{"type": "text", "text": message}]
-    }
-    res = requests.post(url, headers=headers, data=json.dumps(payload))
-    return res.status_code == 200
+        # 4. ทดสอบส่ง LINE พร้อมเช็ค Error
+        token = os.getenv('LINE_CHANNEL_ACCESS_TOKEN')
+        user_id = os.getenv('LINE_USER_ID')
+        
+        print(f"🔍 DEBUG: ความยาว Token = {len(token) if token else 0}")
+        print(f"🔍 DEBUG: User ID ขึ้นต้นด้วย U หรือไม่ = {str(user_id).startswith('U')}")
+
+        if not token or not user_id:
+            print("❌ Error: Missing LINE_CHANNEL_ACCESS_TOKEN or LINE_USER_ID")
+            return
+
+        line_url = "https://api.line.me/v2/bot/message/push"
+        headers = {
+            "Content-Type": "application/json",
+            "Authorization": f"Bearer {token}"
+        }
+        payload = {
+            "to": user_id,
+            "messages": [{"type": "text", "text": msg}]
+        }
+        
+        line_res = requests.post(line_url, headers=headers, json=payload)
+        
+        if line_res.status_code == 200:
+            print("✅ Step 4: ส่ง LINE สำเร็จแล้ว!")
+        else:
+            print(f"❌ Step 4: LINE ปฏิเสธ (Status {line_res.status_code})")
+            print(f"📝 รายละเอียด Error จาก LINE: {line_res.text}")
+
+    except Exception as e:
+        print(f"💥 เกิดข้อผิดพลาดร้ายแรง: {str(e)}")
 
 if __name__ == "__main__":
-    if not all([SUPABASE_URL, SUPABASE_KEY, LINE_CHANNEL_ACCESS_TOKEN, LINE_USER_ID]):
-        print("Error: Missing environment variables.")
-        exit(1)
-        
-    profile, stats = get_daily_status()
-    msg = generate_summary_message(profile, stats)
-    if send_line_message(msg):
-        print(f"Reminder sent successfully:\n{msg}")
-    else:
-        print("Failed to send reminder.")
+    debug_report()
