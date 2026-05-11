@@ -21,21 +21,20 @@ def get_daily_status():
         
     supabase: Client = create_client(SUPABASE_URL, SUPABASE_KEY)
 
-    # Bangkok Timezone (UTC+7)
+    # 1. จัดการเรื่องวันที่ (Bangkok Time)
     tz_bkk = pytz.timezone('Asia/Bangkok')
-    now_bkk = datetime.now(tz_bkk)
-    today = now_bkk.strftime("%Y-%m-%d")
+    today = datetime.now(tz_bkk).strftime("%Y-%m-%d")
 
-    # 1. Fetch Latest Profile
+    # 2. ดึง Profile ล่าสุด
     profile_res = supabase.table("user_profile").select("*").order("updated_at", desc=True).limit(1).maybe_single().execute()  
     if not profile_res.data:
         return None, None
     profile = profile_res.data
 
-    # 2. Fetch Today's Nutrition
-    nut_res = supabase.table("nutrition").select("*").gte("log_ts", f"{today}T00:00:00").execute()
+    # 3. ดึงข้อมูล Nutrition โดยใช้ log_date (เพื่อให้ตรงกับข้อมูลที่คุณบันทึก)
+    nut_res = supabase.table("nutrition").select("*").eq("log_date", today).execute()
 
-    # Aggregate macros
+    # 4. สรุปผล Macros
     stats = {
         "calories": sum(item.get("calories", 0) or 0 for item in nut_res.data),
         "protein_g": sum(item.get("protein_g", 0) or 0 for item in nut_res.data),
@@ -43,12 +42,14 @@ def get_daily_status():
         "fat_g": sum(item.get("fat_g", 0) or 0 for item in nut_res.data),
     }
 
-    # Check supplements
+    # 5. เช็ครายการอาหารเสริม (Supplements)
     default_sups = profile.get("default_supplements", [])
     taken_sups = set()
+    
     for entry in nut_res.data:
         for sup in default_sups:
-            if entry.get(sup):
+            # เช็คว่าคอลัมน์อาหารเสริมตัวนั้นเป็น true หรือไม่ (Boolean)
+            if entry.get(sup) is True: 
                 taken_sups.add(sup)
 
     missing_sups = [s for s in default_sups if s not in taken_sups]
