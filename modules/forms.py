@@ -437,6 +437,17 @@ def render_biohack_form():
     c_g = n3.number_input("Carbs (g)", min_value=0, step=1, key="nut_cg", on_change=save_nut_draft)
     f_g = n4.number_input("Fat (g)", min_value=0, step=1, key="nut_fg", on_change=save_nut_draft)
 
+    st.divider()
+    st.markdown("### ⭐ Meal Score")
+    meal_score = st.slider(
+        "Rate today's nutrition (1 = terrible, 10 = perfect)",
+        min_value=1, max_value=10,
+        value=int(st.session_state.get("nut_meal_score", 5)),
+        step=1,
+        key="nut_meal_score",
+        on_change=save_nut_draft
+    )
+
     submitted = st.button("✅ Save Nutrition")
 
     # Step 1: on submit
@@ -457,7 +468,8 @@ def render_biohack_form():
                 "creatine": crea,
                 "protein_powder": prot,
                 "multivitamin": vit,
-                "omega3": omg
+                "omega3": omg,
+                "meal_score": int(meal_score)
             }
             if db.save_nutrition(nut_data):
                 st.success("✅ Nutrition data saved.")
