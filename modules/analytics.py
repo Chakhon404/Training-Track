@@ -4,6 +4,7 @@ import numpy as np
 import plotly.express as px
 from datetime import datetime, timedelta
 from modules.database import get_db
+from modules.forms import SUPPLEMENT_MAP
 
 # --- UTILITIES ---
 
@@ -201,6 +202,39 @@ def render_nutrition_analysis():
         fig_ms.update_yaxes(range=[0, 10.5]) # Score is 1-10, give some breathing room
         fig_ms.add_hline(y=7, line_dash="dash", line_color="gray", annotation_text="Good")
         st.plotly_chart(fig_ms, use_container_width=True)
+
+    st.divider()
+    st.subheader("💊 Supplement Compliance (last 30 days)")
+
+    sup_db_cols = [db_col for json_key, (display, sess_key, db_col) in SUPPLEMENT_MAP.items()]
+    sup_display_names = {db_col: display for json_key, (display, sess_key, db_col) in SUPPLEMENT_MAP.items()}
+
+    available_cols = [c for c in sup_db_cols if c in df_nut.columns]
+    if available_cols:
+        compliance = {}
+        for col in available_cols:
+            # fillna(False) because missing in DB means not taken
+            pct = df_nut[col].fillna(False).astype(bool).mean() * 100
+            compliance[sup_display_names.get(col, col)] = round(pct, 1)
+
+        df_comp = pd.DataFrame(
+            list(compliance.items()),
+            columns=["Supplement", "Compliance (%)"]
+        ).sort_values("Compliance (%)", ascending=True)
+
+        fig_comp = px.bar(
+            df_comp,
+            x="Compliance (%)", y="Supplement",
+            orientation="h",
+            color="Compliance (%)",
+            color_continuous_scale=["#D85A30", "#F5A623", "#5DCAA5"],
+            range_color=[0, 100],
+            labels={"Compliance (%)": "Days taken (%)"}
+        )
+        fig_comp.update_layout(showlegend=False, coloraxis_showscale=False)
+        st.plotly_chart(fig_comp, use_container_width=True)
+    else:
+        st.info("No supplement data yet.")
 
 def render_overview():
     db = get_db()
