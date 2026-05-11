@@ -156,7 +156,8 @@ def _handle_pending_confirmations(db):
                 "creatine": bool(st.session_state.get("nut_crea", False)),
                 "protein_powder": bool(st.session_state.get("nut_prot", False)),
                 "multivitamin": bool(st.session_state.get("nut_vit", False)),
-                "omega3": bool(st.session_state.get("nut_omg", False))
+                "omega3": bool(st.session_state.get("nut_omg", False)),
+                "meal_score": int(st.session_state.get("nut_meal_score", 5))
             }
             form_key = f"draft_nutrition_{st.session_state.get('user_id', 'default')}"
             if db.save_nutrition(nut_data):
