@@ -83,37 +83,75 @@ def render_analytics():
     profile = db.fetch_profile() or {}
     GOAL_WEIGHT = profile.get("goal_weight_kg") or 64.0
 
-    c1, c2 = st.columns(2)
-    
     with st.spinner("Fetching data..."):
         weight_data = db.fetch_weight()
         df_weight = pd.DataFrame(weight_data)
         if not df_weight.empty:
             df_weight = df_weight.rename(columns={'log_ts': 'Date', 'weight': 'Weight'})
-            df_weight = safe_numeric(df_weight, ['Weight'])
+            df_weight = safe_numeric(df_weight, ['Weight', 'body_fat_pct'])
+            df_weight['Date'] = pd.to_datetime(df_weight['Date'], format='ISO8601', errors='coerce')
+            df_weight = df_weight.sort_values('Date')
 
-    with c1:
-        st.subheader("Weight Prediction")
-        with st.form("weight_form"):
-            today_w = st.number_input("Current Weight", min_value=30.0, step=0.1)
-            target_w = st.number_input("Target Weight", value=float(GOAL_WEIGHT), step=0.1)
-            w_date = st.date_input("Date", datetime.now().date())
-            notes = st.text_input("Notes")
-            if st.form_submit_button("Log & Predict"):
-                if db.save_weight({
-                    "log_ts": datetime.combine(w_date, datetime.now().time()).isoformat(),
-                    "weight": today_w,
-                    "notes": notes
-                }):
-                    st.success("Weight logged!")
-                    st.rerun()
+    # 1. Metrics Row
+    if not df_weight.empty:
+        m1, m2, m3 = st.columns(3)
+        latest = df_weight.iloc[-1]
+        prev = df_weight.iloc[-2] if len(df_weight) > 1 else latest
         
-        pred = predict_target_date(df_weight, target_w)
-        st.metric("Predicted Target Date", pred)
+        w_delta = float(latest['Weight']) - float(prev['Weight'])
+        m1.metric("Latest Weight", f"{latest['Weight']:.1f} kg", delta=f"{w_delta:+.1f} kg", delta_color="inverse")
+        
+        bf_val = latest.get('body_fat_pct', 0)
+        bf_prev = prev.get('body_fat_pct', 0)
+        bf_delta = float(bf_val) - float(bf_prev)
+        m2.metric("Body Fat", f"{bf_val:.1f}%", delta=f"{bf_delta:+.1f}%", delta_color="inverse")
+        
+        # Target Date Prediction
+        pred = predict_target_date(df_weight, GOAL_WEIGHT)
+        m3.metric("Predicted Target Date", pred)
+        st.divider()
 
-    with c2:
-        st.subheader("Weight Trend")
+    # 2. Unified Logging Form
+    st.subheader("⚖️ Weight & Body Fat Log")
+    with st.form("weight_form_unified"):
+        c1, c2, c3 = st.columns(3)
+        today_w = c1.number_input("Weight (kg)", min_value=30.0, step=0.1)
+        today_bf = c2.number_input("Body Fat (%)", min_value=0.0, max_value=100.0, step=0.1, value=float(profile.get('body_fat_pct') or 0.0))
+        w_date = c3.date_input("Date", datetime.now().date())
+        notes = st.text_input("Notes (optional)")
+        if st.form_submit_button("💾 Save Stats", use_container_width=True):
+            if db.save_weight({
+                "log_ts": datetime.combine(w_date, datetime.now().time()).isoformat(),
+                "weight": today_w,
+                "body_fat_pct": today_bf,
+                "notes": notes
+            }):
+                st.success("Stats logged!")
+                st.rerun()
+
+    st.divider()
+    
+    # 3. Trend Charts
+    chart_l, chart_r = st.columns(2)
+    
+    with chart_l:
+        st.subheader("📈 Weight Trend")
         render_chart_safely(df_weight, 'Date', 'Weight', None)
+
+    with chart_r:
+        if not df_weight.empty and df_weight['body_fat_pct'].notna().any():
+            st.subheader("📉 Body Fat % Trend")
+            plot_bf_df = df_weight.dropna(subset=['body_fat_pct']).sort_values('Date')
+            fig_bf = px.line(
+                plot_bf_df,
+                x='Date', y='body_fat_pct',
+                labels={'Date': 'Date', 'body_fat_pct': 'Body Fat (%)'},
+                color_discrete_sequence=['#F5A623']
+            )
+            fig_bf.update_traces(mode='lines+markers')
+            st.plotly_chart(fig_bf, use_container_width=True)
+        else:
+            st.info("Log body fat to see the trend chart.")
 
 def render_nutrition_analysis():
     st.subheader("🥦 Nutrition & Energy")
@@ -438,6 +476,9 @@ def render_overview():
         render_chart_safely(df_wrk_plot, 'Date', 'Volume', "Weekly Training Volume")
     with r:
         render_chart_safely(df_w_plot, 'Date', 'Weight', "Weight Progression")
+
+    st.divider()
+    render_export_section()
 
 def render_data_manager():
     db = get_db()

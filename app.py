@@ -261,10 +261,6 @@ def main():
 
     with tabs[3]:
         render_analytics()
-        st.divider()
-        render_weight_form()
-        st.divider()
-        render_export_section()
 
     with tabs[4]:
         render_nutrition_analysis()
