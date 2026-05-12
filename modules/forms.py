@@ -643,6 +643,7 @@ def render_weight_form():
             "date": str(st.session_state.weight_date),
             "time": st.session_state.weight_time.strftime("%H:%M:%S"),
             "weight_kg": st.session_state.weight_kg,
+            "weight_bf": st.session_state.weight_bf,
             "weight_notes": st.session_state.weight_notes
         }
         db.save_draft(form_key, data)
@@ -654,6 +655,7 @@ def render_weight_form():
         l_time = st.time_input("Time", key="weight_time", on_change=save_weight_draft)
 
     weight_val = st.number_input("Weight (kg)", min_value=0.0, step=0.1, key="weight_kg", on_change=save_weight_draft)
+    weight_bf_val = st.number_input("Body Fat (%)", min_value=0.0, max_value=100.0, step=0.1, key="weight_bf", on_change=save_weight_draft)
     notes = st.text_input("Notes (optional)", key="weight_notes", on_change=save_weight_draft)
 
     submitted = st.button("💾 Log Weight")
@@ -670,6 +672,7 @@ def render_weight_form():
             weight_data = {
                 "log_ts": log_ts,
                 "weight": weight_val,
+                "body_fat_pct": float(weight_bf_val),
                 "notes": notes
             }
             if db.save_weight(weight_data):
@@ -820,6 +823,7 @@ def process_pending_weight(db, session_state):
         weight_data = {
             "log_ts": log_ts,
             "weight": float(session_state.get("weight_kg", 0.0)),
+            "body_fat_pct": float(session_state.get("weight_bf", 0.0)),
             "notes": str(session_state.get("weight_notes", ""))
         }
         form_key = f"draft_weight_{session_state.get('user_id', 'default')}"

@@ -101,7 +101,8 @@ def render_analytics():
         df_weight = pd.DataFrame(weight_data)
         if not df_weight.empty:
             df_weight = df_weight.rename(columns={'log_ts': 'Date', 'weight': 'Weight'})
-            df_weight = safe_numeric(df_weight, ['Weight', 'body_fat_pct'])
+            df_weight = safe_numeric(df_weight, ['Weight'])
+            df_weight['body_fat_pct'] = pd.to_numeric(df_weight['body_fat_pct'], errors='coerce')
             df_weight['Date'] = pd.to_datetime(df_weight['Date'], format='ISO8601', utc=True).dt.tz_convert(None)
             df_weight = df_weight.sort_values('Date')
 
@@ -133,14 +134,17 @@ def render_analytics():
         w_date = c3.date_input("Date", datetime.now().date())
         notes = st.text_input("Notes (optional)")
         if st.form_submit_button("💾 Save Stats", use_container_width=True):
-            if db.save_weight({
-                "log_ts": datetime.combine(w_date, datetime.now().time()).isoformat(),
-                "weight": today_w,
-                "body_fat_pct": today_bf,
-                "notes": notes
-            }):
-                st.success("Stats logged!")
-                st.rerun()
+            if db.check_duplicate_weight(str(w_date)) > 0:
+                st.warning(f"⚠️ Duplicate entry already exists for {w_date}. Please use the Weight Log tab to overwrite.")
+            else:
+                if db.save_weight({
+                    "log_ts": datetime.combine(w_date, datetime.now().time()).isoformat(),
+                    "weight": today_w,
+                    "body_fat_pct": today_bf,
+                    "notes": notes
+                }):
+                    st.success("Stats logged!")
+                    st.rerun()
 
     st.divider()
     
@@ -736,6 +740,8 @@ def render_wellness():
             with m3:
                 body_battery_start = st.select_slider("Body Battery (Start)", options=list(range(101)), value=90)
 
+            body_battery_end = st.select_slider("Body Battery (End of Day)", options=list(range(101)), value=50)
+
             if st.form_submit_button("💾 Save Wellness Data"):
                 try:
                     # Logic for Cross-Midnight Calculation
@@ -770,6 +776,7 @@ def render_wellness():
                             "resting_hr": int(resting_hr),
                             "stress_avg": int(stress_avg),
                             "body_battery_start": int(body_battery_start),
+                            "body_battery_end": int(body_battery_end),
                             "training_readiness": int(training_readiness)
                         }
                         
@@ -857,7 +864,11 @@ def render_wellness():
                         # Map supplements from JSON to DB columns
                         sups = data.get("supplements", {})
                         for k, v in sups.items():
-                            db_key = "multivitamin" if k == "multi_vitamin" else k
+                            # Use SUPPLEMENT_MAP to map JSON keys to DB columns
+                            if k in SUPPLEMENT_MAP:
+                                db_key = SUPPLEMENT_MAP[k][2]
+                            else:
+                                db_key = k
                             nut_payload[db_key] = bool(v)
                             
                         # Perform Update/Insert manually without log_date column

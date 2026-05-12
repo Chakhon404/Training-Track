@@ -55,7 +55,7 @@ def get_daily_status(supabase_client: Client = None):
         for sup in default_sups:
             # sup is the json_key, we need the db_column from SUPPLEMENT_MAP
             db_col = SUPPLEMENT_MAP.get(sup, [None, None, sup])[2]
-            if entry.get(db_col) is True: 
+            if bool(entry.get(db_col)): 
                 taken_sups.add(sup)
 
     missing_sups = [s for s in default_sups if s not in taken_sups]
