@@ -3,6 +3,7 @@ from modules.forms import render_workout_form, render_running_form, render_bioha
 from modules.analytics import render_analytics, render_overview, render_nutrition_analysis, render_data_manager, render_export_section, render_wellness
 from modules.database import get_db
 from datetime import date, datetime, timedelta
+import streamlit.components.v1 as components
 
 # --- PAGE CONFIG ---
 st.set_page_config(
@@ -13,28 +14,46 @@ st.set_page_config(
 )
 
 def check_password():
-    """Silent Login with optional Setup Mode."""
+    """ระบบล็อกอินแบบจดจำกุญแจไว้ในเครื่อง (Local Storage Persistence)"""
+    
     if st.session_state.get("password_correct"):
         return True
 
-    token = st.query_params.get("token")
-    # เพิ่มบรรทัดนี้เพื่อเช็คโหมดติดตั้ง
-    is_setup = st.query_params.get("setup") == "true"
+    # 1. ดึง Token จาก URL (ถ้ามี)
+    token_in_url = st.query_params.get("token")
 
-    if token and token == st.secrets.get("app_token"):
+    # 2. JavaScript Bridge: สั่งให้เบราว์เซอร์เซฟ หรือ ดึงกุญแจคืนมา
+    # โค้ดนี้จะรันบนมือถือของคุณเพื่อแอบจำกุญแจไว้
+    components.html(f"""
+        <script>
+        const TOKEN_KEY = 'training_track_secret_token';
+        const urlParams = new URLSearchParams(window.location.search);
+        const tokenInUrl = urlParams.get('token');
+
+        if (tokenInUrl) {{
+            // ถ้ามาด้วยลิงก์ยาว -> เซฟกุญแจลงเครื่องทันที
+            localStorage.setItem(TOKEN_KEY, tokenInUrl);
+        }} else {{
+            // ถ้ามาด้วยลิงก์สั้น (จาก Home Screen) -> ไปรื้อกุญแจในเครื่องมาดู
+            const savedToken = localStorage.getItem(TOKEN_KEY);
+            if (savedToken) {{
+                // ถ้าเจอคนเคยให้กุญแจไว้ -> พาวิ่งกลับไปหน้าที่มี Token ทันที!
+                window.parent.location.href = window.parent.location.origin + window.parent.location.pathname + '?token=' + savedToken;
+            }}
+        }}
+        </script>
+    """, height=0)
+
+    # 3. ตรวจสอบความถูกต้องตามปกติ
+    if token_in_url and token_in_url == st.secrets.get("app_token"):
         st.session_state["password_correct"] = True
-        
-        # ถ้าไม่ใช่โหมด setup ให้ล้าง URL ปกติ แต่ถ้าใช่ ให้ค้างไว้ให้กด Add to Home Screen
-        if not is_setup:
-            st.query_params.clear()
-            st.rerun()
-        else:
-            st.info("📱 **Setup Mode**: กด 'Add to Home Screen' ได้เลยครับ (URL จะไม่ถูกลบ)")
-            return True
+        # หมายเหตุ: รอบนี้เราไม่ต้อง clear() URL ทันที เพื่อให้ Chrome มีเวลาจำตอนกด Add to Home Screen
+        return True
 
-    st.error("Access Denied: Valid token required in URL.")
+    # 4. ถ้าไม่มีกุญแจเลย (ทั้งใน URL และในเครื่อง)
+    st.error("**Access Denied.**")
     st.stop()
-    
+
 def _handle_pending_confirmations(db):
     """
     Runs on every rerun before tabs are rendered.
