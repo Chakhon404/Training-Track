@@ -29,7 +29,7 @@ def get_daily_status(supabase_client: Client = None):
 
     # 2. ดึง Profile ล่าสุด
     profile_res = supabase.table("user_profile").select("*").order("updated_at", desc=True).limit(1).maybe_single().execute()  
-    if not profile_res.data:
+    if not profile_res or not profile_res.data:
         return None, None
     profile = profile_res.data
 
