@@ -47,7 +47,7 @@ def get_daily_status(supabase_client: Client = None):
     }
 
     # 5. เช็ครายการอาหารเสริม (Supplements)
-    from modules.forms import SUPPLEMENT_MAP
+    from modules.constants import SUPPLEMENT_MAP
     default_sups = profile.get("default_supplements", [])
     taken_sups = set()
     

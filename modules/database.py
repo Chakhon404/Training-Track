@@ -140,6 +140,54 @@ class TrainingDB:
         except Exception:
             return []
 
+    def fetch_workouts_by_date(self, date: str):
+        """Fetch workouts for a specific date (YYYY-MM-DD)."""
+        if not self.is_connected(): return []
+        try:
+            response = self.supabase.table("workouts").select("*")\
+                .gte("log_ts", f"{date}T00:00:00")\
+                .lte("log_ts", f"{date}T23:59:59")\
+                .execute()
+            return response.data
+        except Exception:
+            return []
+
+    def fetch_runs_by_date(self, date: str):
+        """Fetch runs for a specific date (YYYY-MM-DD)."""
+        if not self.is_connected(): return []
+        try:
+            response = self.supabase.table("running").select("*")\
+                .gte("log_ts", f"{date}T00:00:00")\
+                .lte("log_ts", f"{date}T23:59:59")\
+                .execute()
+            return response.data
+        except Exception:
+            return []
+
+    def fetch_nutrition_by_date(self, date: str):
+        """Fetch nutrition entries for a specific date (YYYY-MM-DD)."""
+        if not self.is_connected(): return []
+        try:
+            response = self.supabase.table("nutrition").select("*")\
+                .gte("log_ts", f"{date}T00:00:00")\
+                .lte("log_ts", f"{date}T23:59:59")\
+                .execute()
+            return response.data
+        except Exception:
+            return []
+
+    def fetch_weight_by_date(self, date: str):
+        """Fetch weight entries for a specific date (YYYY-MM-DD)."""
+        if not self.is_connected(): return []
+        try:
+            response = self.supabase.table("weight").select("*")\
+                .gte("log_ts", f"{date}T00:00:00")\
+                .lte("log_ts", f"{date}T23:59:59")\
+                .execute()
+            return response.data
+        except Exception:
+            return []
+
     def save_draft(self, form_key: str, data: dict):
         if not self.is_connected(): return None
         try:
@@ -374,3 +422,20 @@ class TrainingDB:
 @st.cache_resource
 def get_db():
     return TrainingDB()
+
+@st.cache_data(ttl=300)
+def fetch_profile_cached(_db):
+    """Cached wrapper for fetch_profile(). TTL=300s (5 min).
+    Underscore prefix on _db prevents Streamlit from trying to hash the DB object."""
+    return _db.fetch_profile()
+
+@st.cache_data(ttl=60)
+def fetch_workouts_cached(_db):
+    """Cached wrapper for fetch_workouts(). TTL=60s."""
+    return _db.fetch_workouts()
+
+@st.cache_data(ttl=300)
+def fetch_plans_cached(_db):
+    """Cached wrapper for fetch_plans(). TTL=300s (plans change rarely)."""
+    return _db.fetch_plans()
+

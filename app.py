@@ -13,28 +13,23 @@ st.set_page_config(
 )
 
 def check_password():
-    """Returns True if the user is authenticated via token or password."""
+    """Silent Login: ตรวจสอบผ่าน Token เท่านั้น ถ้าไม่มีกุญแจ...เข้าไม่ได้"""
+    # 1. ถ้าเคยล็อกอินผ่านแล้วใน Session นี้ ให้ผ่านไปเลย
     if st.session_state.get("password_correct"):
         return True
 
-    # Auto-login via URL token
-    token = st.query_params.get("token", "")
-    if token and token == st.secrets.get("app_token", ""):
+    # 2. ตรวจสอบกุญแจ (Token) จาก URL
+    token = st.query_params.get("token")
+    
+    if token and token == st.secrets.get("app_token"):
+        # ถ้ากุญแจถูกต้อง -> บันทึกสถานะ -> ลบ URL ให้คลีน -> รีรันเข้าหน้าหลัก
         st.session_state["password_correct"] = True
-        return True
+        st.query_params.clear()
+        st.rerun()
 
-    # Fallback: manual password login
-    st.title("🔐 Secure Access")
-    with st.form("login_form"):
-        pwd = st.text_input("Access Key", type="password")
-        submitted = st.form_submit_button("Unlock Dashboard")
-    if submitted:
-        if pwd == st.secrets["app_password"]:
-            st.session_state["password_correct"] = True
-            st.rerun()
-        else:
-            st.error("Invalid Key.")
-    return False
+    # 3. ถ้าไม่มี Token หรือ Token ผิด -> แสดงหน้า Error สั้นๆ แล้วหยุดทำงาน
+    st.error("Access Denied: Valid token required in URL.")
+    st.stop() # หยุดแอปไว้ตรงนี้ ไม่รันส่วนที่เหลือ
 
 def _handle_pending_confirmations(db):
     """
@@ -130,7 +125,7 @@ def main():
         st.stop()
 
     # --- NAVIGATION ---
-    tabs = st.tabs(["🏠 Overview", "🏋️ Training", "🏃 Movement", "📉 Analytics", "🍱 Nutrition", "🔋 Wellness", "🗂️ Data"])
+    tabs = st.tabs(["🏠 Overview", "🏋️ Training", "🏃 Movement", "⚖️ Weight", "🍱 Nutrition", "🔋 Wellness", "🗂️ Data"])
 
     with tabs[0]:
         render_overview()

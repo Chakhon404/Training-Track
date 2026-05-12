@@ -2,26 +2,8 @@ import streamlit as st
 import pandas as pd
 import json
 from datetime import datetime
-from modules.database import get_db
-
-# json_key → (display_name, session_key, db_column)
-SUPPLEMENT_MAP = {
-    "creatine":       ("Creatine",       "nut_crea",         "creatine"),
-    "protein_powder": ("Protein Powder", "nut_prot",         "protein_powder"),
-    "multi_vitamin":  ("Multi-Vitamin",  "nut_vit",          "multivitamin"),
-    "omega_3":        ("Omega-3",        "nut_omg",          "omega3"),
-    "fish_oil":       ("Fish Oil",       "nut_fish_oil",     "fish_oil"),
-    "astaxanthin":    ("Astaxanthin",    "nut_astaxanthin",  "astaxanthin"),
-    "magnesium":      ("Magnesium",      "nut_magnesium",    "magnesium"),
-    "zinc":           ("Zinc",           "nut_zinc",         "zinc"),
-    "vitamin_d3":     ("Vitamin D3",     "nut_vitamin_d3",   "vitamin_d3"),
-    "vitamin_c":      ("Vitamin C",      "nut_vitamin_c",    "vitamin_c"),
-    "bcaa_eaa":       ("BCAA/EAA",       "nut_bcaa_eaa",     "bcaa_eaa"),
-    "pre_workout":    ("Pre-Workout",    "nut_pre_workout",  "pre_workout"),
-    "caffeine":       ("Caffeine",       "nut_caffeine",     "caffeine"),
-    "probiotics":     ("Probiotics",     "nut_probiotics",   "probiotics"),
-    "b_complex":      ("B-Complex",      "nut_b_complex",    "b_complex"),
-}
+from modules.database import get_db, fetch_profile_cached, fetch_workouts_cached, fetch_plans_cached
+from modules.constants import SUPPLEMENT_MAP
 
 def get_timestamp(log_date, log_time):
     return f"{log_date} {log_time.strftime('%H:%M:%S')}"
@@ -31,34 +13,50 @@ def render_plan_builder():
     st.header("🛠️ Training Plan Builder")
     st.info("Define recurring training templates. Plans are stored in Supabase.")
     
-    # 1. New Plan Form
+    # Initialize session state for dynamic builder
+    if "plan_builder_exercises" not in st.session_state:
+        st.session_state["plan_builder_exercises"] = [{"name": "", "type": "Heavy"}]
+    if "plan_builder_name" not in st.session_state:
+        st.session_state["plan_builder_name"] = ""
+
+    # 1. Dynamic Plan Form
     with st.expander("➕ Create New Plan", expanded=True):
-        with st.form("new_plan_form"):
-            plan_name = st.text_input("Plan Name", placeholder="e.g., Upper Body A")
-            st.write("List up to 10 exercises per plan:")
+        # We don't use st.form because we need dynamic row additions/deletions
+        exercises = st.session_state["plan_builder_exercises"]
+        
+        for i in range(len(exercises)):
+            c1, c2, c3 = st.columns([3, 1, 0.5])
+            exercises[i]["name"] = c1.text_input(f"Exercise {i+1}", value=exercises[i]["name"], key=f"pb_name_{i}")
+            exercises[i]["type"] = c2.selectbox("Type", ["Heavy", "Bodyweight", "Timed"], index=["Heavy", "Bodyweight", "Timed"].index(exercises[i]["type"]), key=f"pb_type_{i}")
+            if c3.button("🗑️", key=f"pb_del_{i}"):
+                st.session_state["plan_builder_exercises"].pop(i)
+                st.rerun()
+        
+        if st.button("➕ Add Exercise"):
+            st.session_state["plan_builder_exercises"].append({"name": "", "type": "Heavy"})
+            st.rerun()
+
+        st.divider()
+        plan_name = st.text_input("Plan Name", key="plan_builder_name", placeholder="e.g., Upper Body A")
+        
+        if st.button("💾 Save Plan", type="primary"):
+            # Filter and validate
+            valid_exercises = [{"name": ex["name"].strip(), "type": ex["type"]} for ex in exercises if ex["name"].strip()]
             
-            ex_data = []
-            for i in range(10):
-                c1, c2 = st.columns([3, 1])
-                name = c1.text_input(f"Exercise {i+1}", key=f"ex_n_{i}")
-                etype = c2.selectbox("Type", ["Heavy", "Bodyweight", "Timed"], key=f"ex_t_{i}")
-                ex_data.append({"name": name, "type": etype})
-            
-            if st.form_submit_button("💾 Save Plan"):
-                if not plan_name.strip():
-                    st.error("Please provide a plan name.")
-                else:
-                    exercises = [{"name": ex["name"].strip(), "type": ex["type"]} for ex in ex_data if ex["name"].strip()]
-                    if exercises:
-                        if db.add_plan({"name": plan_name.strip(), "exercises": exercises}):
-                            st.success(f"Plan '{plan_name}' saved!")
-                            st.rerun()
-                    else:
-                        st.warning("Add at least one exercise label.")
+            if not plan_name.strip():
+                st.error("Please provide a plan name.")
+            elif not valid_exercises:
+                st.error("Add at least one exercise.")
+            else:
+                if db.add_plan({"name": plan_name.strip(), "exercises": valid_exercises}):
+                    st.success(f"Plan '{plan_name}' saved!")
+                    st.session_state["plan_builder_exercises"] = [{"name": "", "type": "Heavy"}]
+                    st.session_state["plan_builder_name"] = ""
+                    st.rerun()
 
     # 2. Existing Plans Management
     st.subheader("📋 Active Plans")
-    plans = db.fetch_plans()
+    plans = fetch_plans_cached(db)
     if plans:
         for p in plans:
             with st.container(border=True):
@@ -76,7 +74,7 @@ def render_workout_form():
     db = get_db()
     st.subheader("🏋️ Training Logger")
 
-    plans = db.fetch_plans()
+    plans = fetch_plans_cached(db)
     if not plans:
         st.warning("No plans found. Use the 'Plan Builder' in the System sidebar to get started.")
         return
@@ -115,12 +113,15 @@ def render_workout_form():
         ex_data = {}
         if selected_plan:
             for i, ex in enumerate(selected_plan['exercises']):
-                if ex['type'] == "Heavy":
-                    ex_data[f"work_w_{i}"] = st.session_state.get(f"work_w_{i}", 0.0)
-                elif ex['type'] == "Timed":
-                    ex_data[f"work_d_{i}"] = st.session_state.get(f"work_d_{i}", 0)
-                ex_data[f"work_s_{i}"] = st.session_state.get(f"work_s_{i}", 0)
-                ex_data[f"work_r_{i}"] = st.session_state.get(f"work_r_{i}", 0)
+                nsets = st.session_state.get(f"work_nsets_{i}", 3)
+                ex_data[f"work_nsets_{i}"] = nsets
+                for s in range(nsets):
+                    if ex['type'] != "Bodyweight":
+                        ex_data[f"work_w_{i}_{s}"] = st.session_state.get(f"work_w_{i}_{s}", 0.0)
+                    if ex['type'] == "Timed":
+                        ex_data[f"work_d_{i}_{s}"] = st.session_state.get(f"work_d_{i}_{s}", 0)
+                    else:
+                        ex_data[f"work_r_{i}_{s}"] = st.session_state.get(f"work_r_{i}_{s}", 0)
                 ex_data[f"work_rpe_{i}"] = st.session_state.get(f"work_rpe_{i}", 7.0)
 
         data = {
@@ -142,7 +143,7 @@ def render_workout_form():
         df_w['log_ts'] = pd.to_datetime(df_w['log_ts'], format='ISO8601')
         bodyweight_kg = float(df_w.sort_values('log_ts').iloc[-1]['weight'])
     else:
-        profile = db.fetch_profile() or {}
+        profile = fetch_profile_cached(db) or {}
         bodyweight_kg = float(profile.get('weight_kg') or 0.0)
     
     st.session_state["bodyweight_kg"] = bodyweight_kg
@@ -159,16 +160,17 @@ def render_workout_form():
         ex_t = ex['type']
 
         # --- Standardized Widget Initialization ---
-        if f"work_s_{i}" not in st.session_state:
-            st.session_state[f"work_s_{i}"] = 0
-        if f"work_r_{i}" not in st.session_state:
-            st.session_state[f"work_r_{i}"] = 0
-        if ex_t == "Heavy":
-            if f"work_w_{i}" not in st.session_state:
-                st.session_state[f"work_w_{i}"] = 0.0
-        elif ex_t == "Timed":
-            if f"work_d_{i}" not in st.session_state:
-                st.session_state[f"work_d_{i}"] = 0
+        if f"work_nsets_{i}" not in st.session_state:
+            st.session_state[f"work_nsets_{i}"] = 3
+        
+        nsets = st.session_state[f"work_nsets_{i}"]
+        for s in range(nsets):
+            if f"work_w_{i}_{s}" not in st.session_state:
+                st.session_state[f"work_w_{i}_{s}"] = 0.0
+            if f"work_r_{i}_{s}" not in st.session_state:
+                st.session_state[f"work_r_{i}_{s}"] = 0
+            if f"work_d_{i}_{s}" not in st.session_state:
+                st.session_state[f"work_d_{i}_{s}"] = 0
 
         st.markdown(f"#### {ex_n} ({ex_t})")
         history = db.fetch_exercise_history(ex_n)
@@ -182,30 +184,37 @@ def render_workout_form():
             ])
             st.caption(f"📊 Last {len(history)}: {hist_str}")
 
-        if ex_t == "Heavy":
-            c1, c2, c3 = st.columns(3)
-            w = c1.number_input("Weight (kg)", min_value=0.0, step=0.5, key=f"work_w_{i}", on_change=save_workout_draft)
-            s = c2.number_input("Sets", min_value=0, step=1, key=f"work_s_{i}", on_change=save_workout_draft)
-            r = c3.number_input("Reps", min_value=0, step=1, key=f"work_r_{i}", on_change=save_workout_draft)
-            d = 0
-        elif ex_t == "Timed":
-            c1, c2 = st.columns(2)
-            s = c1.number_input("Sets", min_value=0, step=1, key=f"work_s_{i}", on_change=save_workout_draft)
-            d = c2.number_input("Duration per set (sec)", min_value=0, step=5, key=f"work_d_{i}", on_change=save_workout_draft)
-            r = 0
-            w = 0.0
+        # Per-Set Input UI
+        st.number_input("Number of Sets", min_value=1, max_value=20, step=1, key=f"work_nsets_{i}", on_change=save_workout_draft)
+        
+        if ex_t == "Timed":
+            st.markdown("**Set | Duration (sec)**")
+        elif ex_t == "Bodyweight":
+            st.markdown("**Set | Reps**")
         else:
-            c1, c2 = st.columns(2)
-            s = c1.number_input("Sets", min_value=0, step=1, key=f"work_s_{i}", on_change=save_workout_draft)
-            r = c2.number_input("Reps", min_value=0, step=1, key=f"work_r_{i}", on_change=save_workout_draft)
-            w = 0.0
-            d = 0
+            st.markdown("**Set | Weight (kg) | Reps**")
+
+        for s in range(st.session_state[f"work_nsets_{i}"]):
+            cols = st.columns([0.5, 1, 1])
+            cols[0].markdown(f"**{s+1}**")
+            
+            if ex_t == "Heavy":
+                w = cols[1].number_input("Weight", label_visibility="collapsed", min_value=0.0, step=0.5, key=f"work_w_{i}_{s}", on_change=save_workout_draft)
+                r = cols[2].number_input("Reps", label_visibility="collapsed", min_value=0, step=1, key=f"work_r_{i}_{s}", on_change=save_workout_draft)
+                d = 0
+            elif ex_t == "Timed":
+                w = 0.0
+                r = 0
+                d = cols[1].number_input("Duration", label_visibility="collapsed", min_value=0, step=5, key=f"work_d_{i}_{s}", on_change=save_workout_draft)
+            else: # Bodyweight
+                w = 0.0
+                d = 0
+                r = cols[1].number_input("Reps", label_visibility="collapsed", min_value=0, step=1, key=f"work_r_{i}_{s}", on_change=save_workout_draft)
 
         rpe_key = f"work_rpe_{i}"
         if rpe_key not in st.session_state:
             st.session_state[rpe_key] = 7.0
         rpe = st.slider("Intensity (RPE)", 1.0, 10.0, step=0.5, key=rpe_key, on_change=save_workout_draft)
-        session_results.append({"name": ex_n, "type": ex_t, "w": w, "s": s, "r": r, "d": d, "rpe": rpe})
         st.divider()
 
     submitted = st.button("💾 Save Training Session")
@@ -221,33 +230,44 @@ def render_workout_form():
             # No duplicate — save directly
             log_ts = get_timestamp(l_date, l_time)
             final_rows = []
-            for item in session_results:
-                if item["s"] > 0:
-                    if item["type"] == "Bodyweight":
-                        volume = bodyweight_kg * item["s"] * item["r"]
-                    elif item["type"] == "Timed":
-                        volume = bodyweight_kg * item["s"] * (item["d"] / 60)
+            for i, ex in enumerate(selected_plan['exercises']):
+                ex_name = ex['name']
+                ex_type = ex['type']
+                nsets = st.session_state.get(f"work_nsets_{i}", 3)
+                rpe = st.session_state.get(f"work_rpe_{i}", 7.0)
+                
+                for s in range(nsets):
+                    w = st.session_state.get(f"work_w_{i}_{s}", 0.0) if ex_type != "Bodyweight" else 0.0
+                    r = st.session_state.get(f"work_r_{i}_{s}", 0) if ex_type != "Timed" else 0
+                    d = st.session_state.get(f"work_d_{i}_{s}", 0) if ex_type == "Timed" else 0
+                    
+                    if ex_type == "Bodyweight":
+                        volume = bodyweight_kg * r
+                    elif ex_type == "Timed":
+                        volume = bodyweight_kg * (d / 60)
                     else:
-                        volume = item["w"] * item["s"] * item["r"]
-                    final_rows.append({
-                        "log_ts": log_ts,
-                        "plan_name": selected_plan_name,
-                        "exercise": item["name"],
-                        "weight": item["w"],
-                        "sets": item["s"],
-                        "reps": item["r"],
-                        "rpe": item["rpe"],
-                        "volume": volume,
-                        "duration_sec": item.get("d", 0)
-                    })
+                        volume = w * r
+                        
+                    if r > 0 or d > 0:
+                        final_rows.append({
+                            "log_ts": log_ts,
+                            "plan_name": selected_plan_name,
+                            "exercise": ex_name,
+                            "weight": w,
+                            "sets": nsets,
+                            "reps": r,
+                            "rpe": rpe,
+                            "volume": volume,
+                            "duration_sec": d
+                        })
 
             if final_rows:
                 if db.save_workout(final_rows):
-                    st.success(f"✅ Session saved: {len(final_rows)} exercises logged.")
+                    st.success(f"✅ Session saved: {len(final_rows)} rows logged.")
                     db.clear_draft(form_key)
                     st.session_state.pop("work_draft_loaded", None)
             else:
-                st.warning("No exercises with sets > 0. Nothing saved.")
+                st.warning("No entries with reps/duration > 0. Nothing saved.")
 
     # Step 2: show confirmation UI OUTSIDE if submitted — persists across reruns
     if st.session_state.get("workout_show_confirm"):
@@ -462,7 +482,7 @@ def render_biohack_form():
         
         # Load default supplements from user profile if no draft exists
         if not draft:
-            profile = db.fetch_profile() or {}
+            profile = fetch_profile_cached(db) or {}
             default_sups = profile.get("default_supplements") or []
         else:
             default_sups = []
@@ -530,7 +550,7 @@ def render_biohack_form():
     st.markdown("### 💊 Supplements")
 
     # Load profile supplements
-    profile = db.fetch_profile() or {}
+    profile = fetch_profile_cached(db) or {}
     default_sups = profile.get("default_supplements") or []
 
     # Filter to only show supplements in profile
@@ -712,7 +732,7 @@ def process_pending_workout(db, session_state):
         
         bw = session_state.get("bodyweight_kg")
         if not bw or float(bw) == 0.0:
-            profile = db.fetch_profile()
+            profile = fetch_profile_cached(db)
             bodyweight_kg = float(profile.get("weight_kg", 0.0)) if profile else 0.0
         else:
             bodyweight_kg = float(bw)
@@ -720,37 +740,43 @@ def process_pending_workout(db, session_state):
         final_rows = []
         for i, ex in enumerate(selected_plan_obj["exercises"]):
             ex_t = ex["type"]
-            s = int(session_state.get(f"work_s_{i}", 0))
-            r = int(session_state.get(f"work_r_{i}", 0))
-            d = int(session_state.get(f"work_d_{i}", 0))
-            w = float(session_state.get(f"work_w_{i}", 0.0)) if ex_t == "Heavy" else 0.0
+            ex_name = ex["name"]
+            nsets = int(session_state.get(f"work_nsets_{i}", 3))
             rpe = float(session_state.get(f"work_rpe_{i}", 7.0))
-            if s > 0:
+            
+            for s in range(nsets):
+                w = float(session_state.get(f"work_w_{i}_{s}", 0.0)) if ex_t != "Bodyweight" else 0.0
+                r = int(session_state.get(f"work_r_{i}_{s}", 0)) if ex_t != "Timed" else 0
+                d = int(session_state.get(f"work_d_{i}_{s}", 0)) if ex_t == "Timed" else 0
+                
                 if ex_t == "Bodyweight":
-                    volume = bodyweight_kg * s * r
+                    volume = bodyweight_kg * r
                 elif ex_t == "Timed":
-                    volume = bodyweight_kg * s * (d / 60)
+                    volume = bodyweight_kg * (d / 60)
                 else:
-                    volume = w * s * r
-                final_rows.append({
-                    "log_ts": log_ts,
-                    "plan_name": curr_plan,
-                    "exercise": ex["name"],
-                    "weight": w,
-                    "sets": s,
-                    "reps": r,
-                    "rpe": rpe,
-                    "volume": volume,
-                    "duration_sec": d
-                })
+                    volume = w * r
+                    
+                if r > 0 or d > 0:
+                    final_rows.append({
+                        "log_ts": log_ts,
+                        "plan_name": curr_plan,
+                        "exercise": ex_name,
+                        "weight": w,
+                        "sets": nsets,
+                        "reps": r,
+                        "rpe": rpe,
+                        "volume": volume,
+                        "duration_sec": d
+                    })
+
         if final_rows:
             form_key = f"draft_workout_{session_state.get('user_id', 'default')}"
             if db.save_workout(final_rows):
-                session_state["_pending_success"] = f"✅ Session saved: {len(final_rows)} exercises logged."
+                session_state["_pending_success"] = f"✅ Session saved: {len(final_rows)} rows logged."
                 db.clear_draft(form_key)
                 session_state.pop("work_draft_loaded", None)
         else:
-            session_state["_pending_warning"] = "No exercises with sets > 0. Nothing saved."
+            session_state["_pending_warning"] = "No entries with reps/duration > 0. Nothing saved."
 
 def process_pending_run(db, session_state):
     """Constructs and saves run/movement data from session state."""
@@ -837,7 +863,7 @@ def render_profile_form():
     st.header("👤 User Profile & Goals")
     st.caption("Your physical stats and nutrition goals. Used across all tabs.")
 
-    profile = db.fetch_profile() or {}
+    profile = fetch_profile_cached(db) or {}
 
     with st.form("profile_form"):
         st.markdown("### 📏 Physical Stats")

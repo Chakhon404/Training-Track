@@ -5,8 +5,8 @@ import plotly.express as px
 import os
 import json
 from datetime import datetime, timedelta
-from modules.database import get_db
-from modules.forms import SUPPLEMENT_MAP
+from modules.database import get_db, fetch_profile_cached, fetch_workouts_cached
+from modules.constants import SUPPLEMENT_MAP
 
 # --- UTILITIES ---
 
@@ -91,9 +91,9 @@ def predict_target_date(df_weights, target=64.0):
 # --- UI RENDERING ---
 
 def render_analytics():
-    st.title("📉 Analytics")
+    st.title("⚖️ Weight")
     db = get_db()
-    profile = db.fetch_profile() or {}
+    profile = fetch_profile_cached(db) or {}
     GOAL_WEIGHT = profile.get("goal_weight_kg") or 64.0
 
     with st.spinner("Fetching data..."):
@@ -126,7 +126,7 @@ def render_analytics():
         st.divider()
 
     # 2. Unified Logging Form
-    st.subheader("⚖️ Weight & Body Fat Log")
+    st.subheader("Weight & Body Fat Log")
     with st.form("weight_form_unified"):
         c1, c2, c3 = st.columns(3)
         today_w = c1.number_input("Weight (kg)", min_value=30.0, step=0.1)
@@ -173,7 +173,7 @@ def render_analytics():
 def render_nutrition_analysis():
     st.subheader("🥦 Nutrition & Energy")
     db = get_db()
-    profile = db.fetch_profile() or {}
+    profile = fetch_profile_cached(db) or {}
     GOAL_CALORIES = profile.get("goal_calories") or 2500
     GOAL_PROTEIN = profile.get("goal_protein_g") or 150
     GOAL_CARBS = profile.get("goal_carbs_g") or 300
@@ -208,6 +208,13 @@ def render_nutrition_analysis():
     # Date processing with TZ strip
     df_nut['Date_dt'] = pd.to_datetime(df_nut['Date'], format='ISO8601', utc=True).dt.tz_convert(None)
     df_nut = safe_numeric(df_nut, ['Calories (kcal)', 'Protein (g)', 'Carbs (g)', 'Fat (g)'])
+    today_str = datetime.now().date()
+    df_nut['Date_date'] = df_nut['Date_dt'].dt.date
+    df_today = df_nut[df_nut['Date_date'] == today_str]
+
+    if df_today.empty:
+        st.info("🍱 Nutrition information for today is not yet available.")
+        return
     latest = df_nut.iloc[-1]
     
     c1, c2, c3, c4 = st.columns(4)
@@ -301,33 +308,27 @@ def render_nutrition_analysis():
 def render_overview():
     db = get_db()
     today = datetime.now().date()
-    profile = db.fetch_profile() or {}
+    profile = fetch_profile_cached(db) or {}
     GOAL_CALORIES = profile.get("goal_calories") or 2500
     GOAL_PROTEIN = profile.get("goal_protein_g") or 150
     GOAL_WEIGHT = profile.get("goal_weight_kg") or None
     
     with st.spinner("Loading Today's Summary..."):
-        workouts = db.fetch_workouts()
-        weight_logs = db.fetch_weight()
-        nutrition_logs = db.fetch_nutrition()
-        runs = db.fetch_runs()
+        work_today_raw = db.fetch_workouts_by_date(str(today))
+        run_today_raw = db.fetch_runs_by_date(str(today))
+        nut_today_raw = db.fetch_nutrition_by_date(str(today))
+        weight_today_raw = db.fetch_weight_by_date(str(today))
 
-        df_work = pd.DataFrame(workouts)
-        df_weight = pd.DataFrame(weight_logs)
-        df_nut = pd.DataFrame(nutrition_logs)
-        df_run = pd.DataFrame(runs)
+        df_work = pd.DataFrame(work_today_raw)
+        df_run = pd.DataFrame(run_today_raw)
+        df_nut = pd.DataFrame(nut_today_raw)
+        df_weight = pd.DataFrame(weight_today_raw)
 
-        # Date processing with TZ strip
-        for df in [df_work, df_weight, df_nut, df_run]:
-            if not df.empty and 'log_ts' in df.columns:
-                df['log_ts'] = pd.to_datetime(df['log_ts'], format='ISO8601', utc=True).dt.tz_convert(None)
-                df['date'] = df['log_ts'].dt.date
-
-        # Filter today
-        work_today = df_work[df_work['date'] == today] if not df_work.empty else pd.DataFrame()
-        weight_today = df_weight[df_weight['date'] == today] if not df_weight.empty else pd.DataFrame()
-        nut_today = df_nut[df_nut['date'] == today] if not df_nut.empty else pd.DataFrame()
-        run_today = df_run[df_run['date'] == today] if not df_run.empty else pd.DataFrame()
+        # Re-map legacy variable names to the new DataFrames for compatibility
+        work_today = df_work
+        run_today = df_run
+        nut_today = df_nut
+        weight_today = df_weight
 
     # Fetch latest wellness for Readiness
     wellness = db.fetch_wellness(days=1)
@@ -495,10 +496,15 @@ def render_overview():
     # Section G — Trend Charts
     l, r = st.columns(2)
     with st.spinner("Generating charts..."):
-        df_w_plot = df_weight.rename(columns={'log_ts': 'Date', 'weight': 'Weight'})
+        all_workouts = fetch_workouts_cached(db)
+        all_weights  = db.fetch_weight()
+        df_wrk_all = pd.DataFrame(all_workouts)
+        df_w_all   = pd.DataFrame(all_weights)
+
+        df_w_plot = df_w_all.rename(columns={'log_ts': 'Date', 'weight': 'Weight'})
         df_w_plot = safe_numeric(df_w_plot, ['Weight'])
         
-        df_wrk_plot = df_work.rename(columns={'log_ts': 'Date', 'volume': 'Volume'})
+        df_wrk_plot = df_wrk_all.rename(columns={'log_ts': 'Date', 'volume': 'Volume'})
         df_wrk_plot = safe_numeric(df_wrk_plot, ['Volume'])
 
     with l:
@@ -514,13 +520,15 @@ def render_data_manager():
     st.header("🗂️ Data Manager")
     st.caption("Review and delete individual entries across all logs.")
 
-    # 1. Workout Entries
+    # Workout Entries
     with st.expander("🏋️ Workout Entries", expanded=False):
         df = pd.DataFrame(db.fetch_workouts())
         if not df.empty:
             df['log_ts'] = pd.to_datetime(df['log_ts'], format='ISO8601', utc=True).dt.tz_convert(None)
-            df_display = df[['log_ts', 'exercise', 'weight', 'sets', 'reps', 'rpe', 'volume']].copy()
-            df_display = df_display.sort_values('log_ts', ascending=False).reset_index(drop=True)
+            display_cols = ['log_ts', 'exercise', 'set_number', 'weight', 'reps', 'rpe', 'volume']
+            df_display = df[[c for c in display_cols if c in df.columns]].copy()
+            st.dataframe(df_display.sort_values('log_ts', ascending=False), hide_index=True, width='stretch')
+
 
             event = st.dataframe(
                 df_display,
@@ -954,8 +962,9 @@ def render_wellness():
 
     # Section E — Correlation: Sleep Score vs Training Volume
     st.subheader("🔗 Sleep vs Next-Day Training Volume")
-    workouts = db.fetch_workouts()
+    workouts = fetch_workouts_cached(db)
     if workouts:
+
         df_work = pd.DataFrame(workouts)
         df_work['log_ts'] = pd.to_datetime(df_work['log_ts'], format='ISO8601', utc=True).dt.tz_convert(None)
         df_work['log_date'] = df_work['log_ts'].dt.date
