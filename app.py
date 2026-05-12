@@ -14,45 +14,37 @@ st.set_page_config(
 )
 
 def check_password():
-    """ระบบล็อกอินแบบจดจำกุญแจไว้ในเครื่อง (Local Storage Persistence)"""
+    """ระบบล็อกอิน 2 ทาง: ผ่าน Token จาก URL หรือพิมพ์ Password เอง"""
     
+    # 1. ถ้าเคยล็อกอินผ่านแล้วใน Session นี้ ให้ผ่านไปเลย
     if st.session_state.get("password_correct"):
         return True
 
-    # 1. ดึง Token จาก URL (ถ้ามี)
-    token_in_url = st.query_params.get("token")
+    # 2. ตรวจสอบกุญแจ (Token) จาก URL
+    token = st.query_params.get("token")
+    if token:
+        if token == st.secrets.get("app_token"):
+            st.session_state["password_correct"] = True
+            st.query_params.clear() # ล้าง URL ให้สะอาด
+            st.rerun()
+        else:
+            st.error("Invalid Token link.")
+            st.stop()
 
-    # 2. JavaScript Bridge: สั่งให้เบราว์เซอร์เซฟ หรือ ดึงกุญแจคืนมา
-    # โค้ดนี้จะรันบนมือถือของคุณเพื่อแอบจำกุญแจไว้
-    components.html(f"""
-        <script>
-        const TOKEN_KEY = 'training_track_secret_token';
-        const urlParams = new URLSearchParams(window.location.search);
-        const tokenInUrl = urlParams.get('token');
+    # 3. ถ้าไม่มี Token หรือ Token ไม่ถูกต้อง -> แสดงหน้ากรอกรหัสผ่าน (Manual Login)
+    st.title(" Secure Access")
+    with st.form("login_form"):
+        pwd = st.text_input("Access Key", type="password", placeholder="กรอกรหัสผ่านเพื่อเข้าใช้งาน")
+        submitted = st.form_submit_button("Unlock Dashboard")
 
-        if (tokenInUrl) {{
-            // ถ้ามาด้วยลิงก์ยาว -> เซฟกุญแจลงเครื่องทันที
-            localStorage.setItem(TOKEN_KEY, tokenInUrl);
-        }} else {{
-            // ถ้ามาด้วยลิงก์สั้น (จาก Home Screen) -> ไปรื้อกุญแจในเครื่องมาดู
-            const savedToken = localStorage.getItem(TOKEN_KEY);
-            if (savedToken) {{
-                // ถ้าเจอคนเคยให้กุญแจไว้ -> พาวิ่งกลับไปหน้าที่มี Token ทันที!
-                window.parent.location.href = window.parent.location.origin + window.parent.location.pathname + '?token=' + savedToken;
-            }}
-        }}
-        </script>
-    """, height=0)
+    if submitted:
+        if pwd == st.secrets.get("app_password"):
+            st.session_state["password_correct"] = True
+            st.rerun()
+        else:
+            st.error("Invalid Key.")
 
-    # 3. ตรวจสอบความถูกต้องตามปกติ
-    if token_in_url and token_in_url == st.secrets.get("app_token"):
-        st.session_state["password_correct"] = True
-        # หมายเหตุ: รอบนี้เราไม่ต้อง clear() URL ทันที เพื่อให้ Chrome มีเวลาจำตอนกด Add to Home Screen
-        return True
-
-    # 4. ถ้าไม่มีกุญแจเลย (ทั้งใน URL และในเครื่อง)
-    st.error("**Access Denied.**")
-    st.stop()
+    return False
 
 def _handle_pending_confirmations(db):
     """
