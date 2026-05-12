@@ -7,6 +7,7 @@ import json
 from datetime import datetime, timedelta
 from modules.database import get_db, fetch_profile_cached, fetch_workouts_cached
 from modules.constants import SUPPLEMENT_MAP
+from modules.forms import render_today_training_summary
 
 # --- UTILITIES ---
 
@@ -433,16 +434,7 @@ def render_overview():
         st.info("🍱 No nutrition logged today.")
 
     # Section D — Training Detail Card
-    if not work_today.empty:
-        with st.container(border=True):
-            st.markdown("### 🏋️ Today's Training")
-            st.dataframe(
-                work_today[['exercise', 'weight', 'sets', 'reps', 'volume', 'rpe']], 
-                hide_index=True,
-                width='stretch'
-            )
-    else:
-        st.info("🏋️ No training logged today.")
+    render_today_training_summary()
 
     # Section E — Movement Detail Card
     if not run_today.empty:
@@ -522,13 +514,11 @@ def render_data_manager():
         df = pd.DataFrame(db.fetch_workouts())
         if not df.empty:
             df['log_ts'] = pd.to_datetime(df['log_ts'], format='ISO8601', utc=True).dt.tz_convert(None)
-            display_cols = ['log_ts', 'exercise', 'set_number', 'weight', 'reps', 'rpe', 'volume']
+            display_cols = ['log_ts', 'exercise', 'weight', 'reps', 'rpe', 'volume']
             df_display = df[[c for c in display_cols if c in df.columns]].copy()
-            st.dataframe(df_display.sort_values('log_ts', ascending=False), hide_index=True, width='stretch')
-
 
             event = st.dataframe(
-                df_display,
+                df_display.sort_values('log_ts', ascending=False).reset_index(drop=True),
                 width='stretch',
                 hide_index=True,
                 on_select="rerun",

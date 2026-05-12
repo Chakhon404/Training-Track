@@ -71,6 +71,29 @@ def render_plan_builder():
     else:
         st.info("No plans found. Build your first one above!")
 
+def _build_workout_snapshot(plan_name, plan_obj, log_date, log_time, state):
+    """Build a draft-compatible snapshot of the current workout session.
+    Used to persist the last successfully saved session separately from
+    the normal auto-save draft."""
+    ex_data = {}
+    if plan_obj:
+        exercises = plan_obj.get("exercises", [])
+        for i, ex in enumerate(exercises):
+            nsets = int(state.get(f"work_nsets_{i}", 3))
+            ex_data[f"work_nsets_{i}"] = nsets
+            ex_data[f"work_rpe_{i}"]   = state.get(f"work_rpe_{i}", 7.0)
+            for s in range(nsets):
+                ex_data[f"work_w_{i}_{s}"] = state.get(f"work_w_{i}_{s}", 0.0)
+                ex_data[f"work_r_{i}_{s}"] = state.get(f"work_r_{i}_{s}", 0)
+                ex_data[f"work_d_{i}_{s}"] = state.get(f"work_d_{i}_{s}", 0)
+    return {
+        "date":      str(log_date),
+        "time":      log_time.strftime("%H:%M:%S") if hasattr(log_time, "strftime") else str(log_time),
+        "plan_name": plan_name,
+        "exercises": ex_data,
+        "_is_last_session": True
+    }
+
 def render_workout_form():
     db = get_db()
     st.subheader("🏋️ Training Logger")
@@ -96,6 +119,14 @@ def render_workout_form():
             st.session_state[k] = v
             
         st.session_state.work_draft_loaded = True
+
+        # --- Load Last Session offer ---
+        last_key = f"last_workout_{st.session_state.get('user_id', 'default')}"
+        last_snapshot = db.load_draft(last_key)
+
+        if not draft and last_snapshot:
+            st.session_state["_show_load_last"] = True
+            st.session_state["_last_snapshot"]  = last_snapshot
 
     # --- Standardized Widget Initialization ---
     if "work_date" not in st.session_state:
@@ -132,6 +163,27 @@ def render_workout_form():
             "exercises": ex_data
         }
         db.save_draft(form_key, data)
+
+    if st.session_state.get("_show_load_last"):
+        last = st.session_state.get("_last_snapshot", {})
+        last_plan = last.get("plan_name", "")
+        last_date = last.get("date", "")
+        st.info(f"📋 Last session: **{last_plan}** on {last_date}")
+        col_yes, col_no = st.columns(2)
+        if col_yes.button("✅ Load Last Session", key="load_last_yes"):
+            # Apply snapshot values into session state
+            ex_data = last.get("exercises", {})
+            for k, v in ex_data.items():
+                st.session_state[k] = v
+            if last_plan in plan_names:
+                st.session_state.work_plan_name = last_plan
+            st.session_state.pop("_show_load_last", None)
+            st.session_state.pop("_last_snapshot",  None)
+            st.rerun()
+        if col_no.button("❌ Start Fresh", key="load_last_no"):
+            st.session_state.pop("_show_load_last", None)
+            st.session_state.pop("_last_snapshot",  None)
+            st.rerun()
 
     selected_plan_name = st.selectbox("Select Training Plan", plan_names, key="work_plan_name", on_change=save_workout_draft)
     selected_plan = next(p for p in plans if p['name'] == selected_plan_name)
@@ -266,6 +318,11 @@ def render_workout_form():
                 if db.save_workout(final_rows):
                     st.success(f"✅ Session saved: {len(final_rows)} rows logged.")
                     db.clear_draft(form_key)
+                    # Save last session snapshot (separate from normal draft)
+                    last_key = f"last_workout_{st.session_state.get('user_id', 'default')}"
+                    db.save_draft(last_key, _build_workout_snapshot(
+                        selected_plan_name, selected_plan, l_date, l_time, st.session_state
+                    ))
                     st.session_state.pop("work_draft_loaded", None)
             else:
                 st.warning("No entries with reps/duration > 0. Nothing saved.")
@@ -775,6 +832,11 @@ def process_pending_workout(db, session_state):
             if db.save_workout(final_rows):
                 session_state["_pending_success"] = f"✅ Session saved: {len(final_rows)} rows logged."
                 db.clear_draft(form_key)
+                # Save last session snapshot
+                last_key = f"last_workout_{session_state.get('user_id', 'default')}"
+                db.save_draft(last_key, _build_workout_snapshot(
+                    curr_plan, selected_plan_obj, work_date, work_time, session_state
+                ))
                 session_state.pop("work_draft_loaded", None)
         else:
             session_state["_pending_warning"] = "No entries with reps/duration > 0. Nothing saved."
@@ -964,3 +1026,57 @@ def render_profile_form():
             if db.save_profile(profile_data):
                 st.success("✅ Profile saved.")
                 st.rerun()
+
+def render_today_training_summary():
+    db = get_db()
+    today_str = str(datetime.now().date())
+    rows = db.fetch_workouts_by_date(today_str)
+    with st.container(border=True):
+        st.markdown("### 🏋️ Today Training")
+
+        if not rows:
+            st.info("🏋️ no training logged today.")
+            return
+
+        df = pd.DataFrame(rows)
+        df['rpe']          = pd.to_numeric(df['rpe'],          errors='coerce')
+        df['volume']       = pd.to_numeric(df['volume'],       errors='coerce')
+
+        # ── Top Metrics ──────────────────────────────────────
+        total_volume = df['volume'].sum()
+        avg_rpe      = df['rpe'].mean()
+
+        c1, c2 = st.columns(2)
+        c1.metric("🏋️ Total Volume", f"{total_volume:,.0f} kg")
+        c2.metric("🔥 Avg RPE",      f"{avg_rpe:.1f} / 10")
+
+        st.divider()
+
+        # ── Exercise Breakdown Table ──────────────────────────
+        # นับ Sets โดยนับ rows ที่มีชื่อ exercise ซ้ำกัน
+        # เพราะแต่ละ set = 1 row ใน DB ไม่ขึ้นกับ set_number column
+        with st.expander(" 🗂️ Exercise Breakdown"):
+            sets_col = df.groupby("exercise")["exercise"].count().rename("Sets")
+
+            summary = df.groupby("exercise").agg(
+                Volume=("volume", "sum"),
+                RPE=("rpe", "mean"),
+            ).join(sets_col).reset_index()
+
+            summary = summary[["exercise", "Sets", "Volume", "RPE"]]
+            summary["Volume"] = summary["Volume"].map(lambda x: f"{x:,.1f} kg")
+            summary["RPE"]    = summary["RPE"].map(lambda x: f"{x:.1f}")
+            st.dataframe(summary, hide_index=True, use_container_width=True)
+
+        # ── Per-Set Detail Expanders ──────────────────────────
+        with st.expander(" 🔍 Per-Set Detail"):
+            for exercise, group in df.groupby("exercise"):
+                with st.expander(f"📌 {exercise}", expanded=False):
+                    detail_cols = [c for c in
+                        ['weight', 'reps', 'duration_sec', 'rpe', 'volume']
+                        if c in group.columns]
+                    st.dataframe(
+                        group[detail_cols].reset_index(drop=True),
+                        hide_index=False,
+                        use_container_width=True
+                    )
