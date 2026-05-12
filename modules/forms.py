@@ -51,7 +51,7 @@ def render_plan_builder():
                 if db.add_plan({"name": plan_name.strip(), "exercises": valid_exercises}):
                     st.success(f"Plan '{plan_name}' saved!")
                     st.session_state["plan_builder_exercises"] = [{"name": "", "type": "Heavy"}]
-                    st.session_state["plan_builder_name"] = ""
+                    st.session_state.pop("plan_builder_name", None)
                     st.rerun()
 
     # 2. Existing Plans Management
