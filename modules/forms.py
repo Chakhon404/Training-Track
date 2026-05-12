@@ -64,6 +64,7 @@ def render_plan_builder():
                 c1.markdown(f"### {p['name']}")
                 if c2.button("🗑️ Delete", key=f"del_{p['id']}"):
                     if db.delete_plan(p['id']):
+                        st.cache_data.clear()
                         st.rerun()
                 ex_list = ", ".join([f"{ex['name']} ({ex['type']})" for ex in p['exercises']])
                 st.caption(ex_list)
