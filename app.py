@@ -13,24 +13,28 @@ st.set_page_config(
 )
 
 def check_password():
-    """Silent Login: ตรวจสอบผ่าน Token เท่านั้น ถ้าไม่มีกุญแจ...เข้าไม่ได้"""
-    # 1. ถ้าเคยล็อกอินผ่านแล้วใน Session นี้ ให้ผ่านไปเลย
+    """Silent Login with optional Setup Mode."""
     if st.session_state.get("password_correct"):
         return True
 
-    # 2. ตรวจสอบกุญแจ (Token) จาก URL
     token = st.query_params.get("token")
-    
+    # เพิ่มบรรทัดนี้เพื่อเช็คโหมดติดตั้ง
+    is_setup = st.query_params.get("setup") == "true"
+
     if token and token == st.secrets.get("app_token"):
-        # ถ้ากุญแจถูกต้อง -> บันทึกสถานะ -> ลบ URL ให้คลีน -> รีรันเข้าหน้าหลัก
         st.session_state["password_correct"] = True
-        st.query_params.clear()
-        st.rerun()
+        
+        # ถ้าไม่ใช่โหมด setup ให้ล้าง URL ปกติ แต่ถ้าใช่ ให้ค้างไว้ให้กด Add to Home Screen
+        if not is_setup:
+            st.query_params.clear()
+            st.rerun()
+        else:
+            st.info("📱 **Setup Mode**: กด 'Add to Home Screen' ได้เลยครับ (URL จะไม่ถูกลบ)")
+            return True
 
-    # 3. ถ้าไม่มี Token หรือ Token ผิด -> แสดงหน้า Error สั้นๆ แล้วหยุดทำงาน
     st.error("Access Denied: Valid token required in URL.")
-    st.stop() # หยุดแอปไว้ตรงนี้ ไม่รันส่วนที่เหลือ
-
+    st.stop()
+    
 def _handle_pending_confirmations(db):
     """
     Runs on every rerun before tabs are rendered.
