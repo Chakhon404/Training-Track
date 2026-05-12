@@ -108,7 +108,7 @@ def render_analytics():
 
     # 1. Metrics Row
     if not df_weight.empty:
-        m1, m2, m3 = st.columns(3)
+        m1, m2 = st.columns(2)
         latest = df_weight.iloc[-1]
         prev = df_weight.iloc[-2] if len(df_weight) > 1 else latest
         
@@ -120,9 +120,6 @@ def render_analytics():
         bf_delta = float(bf_val) - float(bf_prev)
         m2.metric("Body Fat", f"{bf_val:.1f}%", delta=f"{bf_delta:+.1f}%", delta_color="inverse")
         
-        # Target Date Prediction
-        pred = predict_target_date(df_weight, GOAL_WEIGHT)
-        m3.metric("Predicted Target Date", pred)
         st.divider()
 
     # 2. Unified Logging Form
@@ -823,95 +820,6 @@ def render_wellness():
         f"{int(latest['training_readiness']) if pd.notna(latest.get('training_readiness')) else 'N/A'}"
     )
 
-    # --- AI COACH & JSON IMPORT ---
-    st.divider()
-    st.subheader("🤖 AI Coach & Data Import")
-    
-    c_coach, c_import = st.columns(2)
-    
-    with c_coach:
-        st.markdown("#### 🔔 Manual Reminder")
-        if st.button("🔔 Test AI Coach (Send to LINE)"):
-            import subprocess
-            try:
-                # Use st.secrets to populate environment for the sub-process
-                env = os.environ.copy()
-                for key, val in st.secrets.items():
-                    env[key] = str(val)
-                
-                result = subprocess.run(["python", "daily_reminder.py"], env=env, capture_output=True, text=True)
-                if result.returncode == 0:
-                    st.success("✅ AI Coach reminder triggered! Check LINE.")
-                    st.info(f"Coach output: {result.stdout}")
-                else:
-                    st.error(f"❌ Failed: {result.stderr}")
-            except Exception as e:
-                st.error(f"⚠️ Error: {str(e)}")
-
-    with c_import:
-        st.markdown("#### 📥 JSON Quick Import")
-        with st.expander("Paste Daily Summary JSON"):
-            json_text = st.text_area("Paste Gemini JSON here", height=150, key="wellness_json_import")
-            if st.button("💾 Import Nutrition Data", key="btn_import_nut"):
-                if json_text.strip():
-                    try:
-                        data = json.loads(json_text)
-                        log_date = data.get("log_date", datetime.now().strftime("%Y-%m-%d"))
-                        
-                        # Prepare payload for upsert
-                        nut_payload = {
-                            "log_ts": f"{log_date} {data.get('log_time', '12:00:00')}",
-                            "calories": int(data.get("energy_macros", {}).get("calories", 0)),
-                            "protein_g": int(data.get("energy_macros", {}).get("protein_g", 0)),
-                            "carbs_g": int(data.get("energy_macros", {}).get("carbs_g", 0)),
-                            "fat_g": int(data.get("energy_macros", {}).get("fat_g", 0)),
-                            "meal_score": data.get("meal_score"),
-                            "food_name": data.get("food_name", "Gemini Daily Summary")
-                        }
-                        
-                        # Map supplements from JSON to DB columns
-                        sups = data.get("supplements", {})
-                        for k, v in sups.items():
-                            # Use SUPPLEMENT_MAP to map JSON keys to DB columns
-                            if k in SUPPLEMENT_MAP:
-                                db_key = SUPPLEMENT_MAP[k][2]
-                            else:
-                                db_key = k
-                            nut_payload[db_key] = bool(v)
-                            
-                        # Perform Update/Insert manually without log_date column
-                        nut_payload.pop("log_date", None)
-
-                        # Check if entry already exists for this date (by log_ts date prefix)
-                        existing = db.supabase.table("nutrition")\
-                            .select("id")\
-                            .gte("log_ts", f"{log_date}T00:00:00")\
-                            .lte("log_ts", f"{log_date}T23:59:59")\
-                            .execute()
-
-                        if existing.data:
-                            # Update existing entry
-                            entry_id = existing.data[0]["id"]
-                            res = db.supabase.table("nutrition")\
-                                .update(nut_payload)\
-                                .eq("id", entry_id)\
-                                .execute()
-                        else:
-                            # Insert new entry
-                            res = db.supabase.table("nutrition")\
-                                .insert(nut_payload)\
-                                .execute()
-
-                        if res.data:
-                            st.success(f"✅ Data imported/updated for {log_date}")
-                            st.rerun()
-                        else:
-                            st.error("❌ Import failed. Check Supabase logs.")
-                            
-                    except Exception as e:
-                        st.error(f"❌ Error: {str(e)}")
-
-    st.divider()
     # Section B — Sleep duration bar
     if 'sleep_duration_min' in df.columns:
         st.subheader("😴 Sleep Duration (last 30 days)")
