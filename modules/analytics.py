@@ -213,12 +213,21 @@ def render_nutrition_analysis():
     if df_today.empty:
         st.info("🍱 Nutrition information for today is not yet available.")
         return
-    latest = df_nut.iloc[-1]
+    # Sum all entries for today (multiple meals)
+    cal_val  = df_today['Calories (kcal)'].sum()
+    prot_val = df_today['Protein (g)'].sum()
+    carb_val = df_today['Carbs (g)'].sum()
+    fat_val  = df_today['Fat (g)'].sum()
+    # Supplements: use last entry only (boolean — not cumulative)
+    latest   = df_today.iloc[-1]
     
     c1, c2, c3, c4 = st.columns(4)
     for col, (label, goal) in zip([c1, c2, c3, c4], GOALS.items()):
-        key = 'Calories (kcal)' if label == "Calories" else f"{label} (g)"
-        val = float(latest.get(key, 0))
+        if label == "Calories": val = cal_val
+        elif label == "Protein": val = prot_val
+        elif label == "Carbs": val = carb_val
+        else: val = fat_val
+        
         diff = val - goal
         color = "inverse" if label == "Calories" and diff > 0 else "normal"
         col.metric(label, f"{val:.0f}/{goal}", delta=f"{diff:.0f}", delta_color=color)
@@ -245,8 +254,11 @@ def render_nutrition_analysis():
     st.markdown("### Daily Progress (%)")
     pct_data = []
     for label, goal in GOALS.items():
-        key = 'Calories (kcal)' if label == "Calories" else f"{label} (g)"
-        val = float(latest.get(key, 0))
+        if label == "Calories": val = cal_val
+        elif label == "Protein": val = prot_val
+        elif label == "Carbs": val = carb_val
+        else: val = fat_val
+        
         pct = min(100, (val / goal * 100)) if goal > 0 else 0
         pct_data.append({"Macro": label, "Percentage": pct})
     
@@ -392,7 +404,7 @@ def render_overview():
 
     with c5:
         if not nut_today.empty:
-            cal = int(nut_today.iloc[-1]['calories'])
+            cal = int(nut_today['calories'].sum())
             st.metric("🍱 Calories", f"{cal} kcal", delta=f"{cal - GOAL_CALORIES} vs Goal")
         else:
             st.metric("🍱 Calories", "Not logged")
@@ -403,16 +415,20 @@ def render_overview():
     if not nut_today.empty:
         with st.container(border=True):
             st.markdown("### 🍱 Today's Nutrition")
+            # Sum all meals for today
+            prot_total = int(nut_today['protein_g'].sum())
+            carb_total = int(nut_today['carbs_g'].sum())
+            fat_total  = int(nut_today['fat_g'].sum())
+            # Keep latest for supplement boolean check
             latest_nut = nut_today.iloc[-1]
             
             m1, m2, m3 = st.columns(3)
             with m1:
-                p = int(latest_nut.get('protein_g', 0))
-                st.metric("Protein", f"{p}g", delta=f"{p - GOAL_PROTEIN}g vs Goal")
+                st.metric("Protein", f"{prot_total}g", delta=f"{prot_total - GOAL_PROTEIN}g vs Goal")
             with m2:
-                st.metric("Carbs", f"{int(latest_nut.get('carbs_g', 0))}g")
+                st.metric("Carbs", f"{carb_total}g")
             with m3:
-                st.metric("Fat", f"{int(latest_nut.get('fat_g', 0))}g")
+                st.metric("Fat", f"{fat_total}g")
             st.divider()
             
             # Dynamic Supplement Status based on Profile Defaults
