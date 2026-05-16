@@ -247,7 +247,8 @@ def render_nutrition_analysis():
             for col, sup_key in zip(cols, row_keys):
                 if sup_key in SUPPLEMENT_MAP:
                     display, _, db_col = SUPPLEMENT_MAP[sup_key]
-                    status = "✅" if latest.get(db_col) else "❌"
+                    taken = bool(df_today[db_col].any()) if db_col in df_today.columns else False
+                    status = "✅" if taken else "❌"
                     col.markdown(f"**{display}**: {status}")
 
     st.divider()
@@ -444,7 +445,9 @@ def render_overview():
                     for col, sup_key in zip(cols, row_keys):
                         if sup_key in SUPPLEMENT_MAP:
                             display, _, db_col = SUPPLEMENT_MAP[sup_key]
-                            status = "✅" if latest_nut.get(db_col) else "❌"
+                            # Use .any() across all today's entries — taken in any meal = ✅
+                            taken = bool(nut_today[db_col].any()) if db_col in nut_today.columns else False
+                            status = "✅" if taken else "❌"
                             col.markdown(f"**{display}**: {status}")
     else:
         st.info("🍱 No nutrition logged today.")

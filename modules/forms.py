@@ -538,18 +538,30 @@ def render_biohack_form():
         # food_name
         st.session_state.nut_food_name = draft.get("food_name", "")
         
-        # Load default supplements from user profile if no draft exists
-        if not draft:
+        # Try to pre-fill supplements from today's entries first
+        today_str = str(datetime.now().date())
+        today_entries = db.fetch_nutrition_by_date(today_str)
+
+        if draft:
+            # Draft exists — load supplements from draft as before
+            for json_key, (display, sess_key, db_col) in SUPPLEMENT_MAP.items():
+                draft_val = draft.get(db_col)
+                if draft_val is not None:
+                    st.session_state[sess_key] = bool(draft_val)
+                else:
+                    st.session_state[sess_key] = False
+
+        elif today_entries:
+            # No draft but has entries today — pre-fill from latest entry
+            latest_today = today_entries[-1]
+            for json_key, (display, sess_key, db_col) in SUPPLEMENT_MAP.items():
+                st.session_state[sess_key] = bool(latest_today.get(db_col, False))
+
+        else:
+            # No draft, no entries today — fall back to profile defaults
             profile = fetch_profile_cached(db) or {}
             default_sups = profile.get("default_supplements") or []
-        else:
-            default_sups = []
-
-        for json_key, (display, sess_key, db_col) in SUPPLEMENT_MAP.items():
-            draft_val = draft.get(db_col)
-            if draft_val is not None:
-                st.session_state[sess_key] = bool(draft_val)
-            else:
+            for json_key, (display, sess_key, db_col) in SUPPLEMENT_MAP.items():
                 st.session_state[sess_key] = json_key in default_sups
         
         st.session_state.nut_cal = draft.get("cal", 0)
