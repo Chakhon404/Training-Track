@@ -611,7 +611,8 @@ def render_biohack_form():
         st.session_state.nut_food_name = draft.get("food_name", "")
         
         # Try to pre-fill supplements from today's entries first
-        today_str = str(datetime.now().date())
+        _bkk = pytz.timezone("Asia/Bangkok")
+        today_str = str(datetime.now(_bkk).date())
         today_entries = db.fetch_nutrition_by_date(today_str)
 
         if draft:
@@ -1135,7 +1136,8 @@ def render_profile_form():
 
 def render_today_training_summary():
     db = get_db()
-    today_str = str(datetime.now().date())
+    _bkk = pytz.timezone("Asia/Bangkok")
+    today_str = str(datetime.now(_bkk).date())
     rows = db.fetch_workouts_by_date(today_str)
     with st.container(border=True):
         st.markdown("### 🏋️ Today Training")

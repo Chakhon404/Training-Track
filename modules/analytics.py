@@ -5,6 +5,7 @@ import plotly.express as px
 import os
 import json
 from datetime import datetime, timedelta
+import pytz
 from modules.database import get_db, fetch_profile_cached, fetch_workouts_cached
 from modules.constants import SUPPLEMENT_MAP
 from modules.forms import render_today_training_summary
@@ -129,14 +130,16 @@ def render_analytics():
         c1, c2, c3 = st.columns(3)
         today_w = c1.number_input("Weight (kg)", min_value=30.0, step=0.1)
         today_bf = c2.number_input("Body Fat (%)", min_value=0.0, max_value=100.0, step=0.1, value=float(profile.get('body_fat_pct') or 0.0))
-        w_date = c3.date_input("Date", datetime.now().date())
+        _bkk = pytz.timezone("Asia/Bangkok")
+        w_date = c3.date_input("Date", datetime.now(_bkk).date())
         notes = st.text_input("Notes (optional)")
         if st.form_submit_button("💾 Save Stats", use_container_width=True):
             if db.check_duplicate_weight(str(w_date)) > 0:
                 st.warning(f"⚠️ Duplicate entry already exists for {w_date}. Please use the Weight Log tab to overwrite.")
             else:
+                _bkk = pytz.timezone("Asia/Bangkok")
                 if db.save_weight({
-                    "log_ts": datetime.combine(w_date, datetime.now().time()).isoformat(),
+                    "log_ts": datetime.combine(w_date, datetime.now(_bkk).time().replace(tzinfo=None)).isoformat(),
                     "weight": today_w,
                     "body_fat_pct": today_bf,
                     "notes": notes
@@ -206,7 +209,8 @@ def render_nutrition_analysis():
     # Date processing with TZ strip
     df_nut['Date_dt'] = pd.to_datetime(df_nut['Date'], format='ISO8601', utc=True).dt.tz_convert(None)
     df_nut = safe_numeric(df_nut, ['Calories (kcal)', 'Protein (g)', 'Carbs (g)', 'Fat (g)'])
-    today_str = datetime.now().date()
+    _bkk = pytz.timezone("Asia/Bangkok")
+    today_str = datetime.now(_bkk).date()
     df_nut['Date_date'] = df_nut['Date_dt'].dt.date
     df_today = df_nut[df_nut['Date_date'] == today_str]
 
@@ -322,7 +326,8 @@ def render_nutrition_analysis():
 
 def render_overview():
     db = get_db()
-    today = datetime.now().date()
+    _bkk = pytz.timezone("Asia/Bangkok")
+    today = datetime.now(_bkk).date()
     profile = fetch_profile_cached(db) or {}
     GOAL_CALORIES = profile.get("goal_calories") or 2500
     GOAL_PROTEIN = profile.get("goal_protein_g") or 150
@@ -737,7 +742,8 @@ def render_wellness():
     with st.expander("📝 Log Daily Wellness", expanded=True):
         with st.form("wellness_manual_form", clear_on_submit=True):
             col1, col2 = st.columns(2)
-            log_date = col1.date_input("Log Date", value=datetime.now().date())
+            _bkk = pytz.timezone("Asia/Bangkok")
+            log_date = col1.date_input("Log Date", value=datetime.now(_bkk).date())
             resting_hr = col2.number_input("Resting Heart Rate (bpm)", min_value=30, max_value=150, value=55, step=1)
 
             st.markdown("---")
