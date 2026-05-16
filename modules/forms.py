@@ -13,14 +13,18 @@ def render_plan_builder():
     st.header("🛠️ Training Plan Builder")
     st.info("Define recurring training templates. Plans are stored in Supabase.")
     
+    # Detect edit mode
+    is_edit_mode = "plan_editing_id" in st.session_state
+
+    if is_edit_mode:
+        st.info(f"✏️ Editing plan: **{st.session_state['plan_editing_name']}**")
+
     # Initialize session state for dynamic builder
     if "plan_builder_exercises" not in st.session_state:
         st.session_state["plan_builder_exercises"] = [{"name": "", "type": "Heavy"}]
-    if "plan_builder_name" not in st.session_state:
-        st.session_state["plan_builder_name"] = ""
 
     # 1. Dynamic Plan Form
-    with st.expander("➕ Create New Plan", expanded=True):
+    with st.expander("➕ Create New Plan" if not is_edit_mode else "✏️ Edit Plan", expanded=True):
         # We don't use st.form because we need dynamic row additions/deletions
         exercises = st.session_state["plan_builder_exercises"]
         
@@ -37,22 +41,56 @@ def render_plan_builder():
             st.rerun()
 
         st.divider()
+
+        # Plan name input — pre-fill with editing name if in edit mode
+        if is_edit_mode and "plan_builder_name" not in st.session_state:
+            st.session_state["plan_builder_name"] = st.session_state["plan_editing_name"]
+
         plan_name = st.text_input("Plan Name", key="plan_builder_name", placeholder="e.g., Upper Body A")
         
-        if st.button("💾 Save Plan", type="primary"):
+        # Cancel Edit button — only shown in edit mode
+        col_save, col_cancel = st.columns([3, 1])
+
+        if is_edit_mode:
+            save_label  = "💾 Update Plan"
+            save_key    = "pb_update"
+        else:
+            save_label  = "💾 Save Plan"
+            save_key    = "pb_save"
+
+        if col_save.button(save_label, key=save_key, type="primary"):
             # Filter and validate
             valid_exercises = [{"name": ex["name"].strip(), "type": ex["type"]} for ex in exercises if ex["name"].strip()]
-            
-            if not plan_name.strip():
+            plan_name_val = plan_name.strip()
+
+            if not plan_name_val:
                 st.error("Please provide a plan name.")
             elif not valid_exercises:
                 st.error("Add at least one exercise.")
+            elif is_edit_mode:
+                plan_id = st.session_state["plan_editing_id"]
+                if db.update_plan(plan_id, {"name": plan_name_val, "exercises": valid_exercises}):
+                    st.success(f"Plan '{plan_name_val}' updated!")
+                    st.session_state["plan_builder_exercises"] = [{"name": "", "type": "Heavy"}]
+                    st.session_state.pop("plan_builder_name",    None)
+                    st.session_state.pop("plan_editing_id",      None)
+                    st.session_state.pop("plan_editing_name",    None)
+                    st.cache_data.clear()
+                    st.rerun()
             else:
-                if db.add_plan({"name": plan_name.strip(), "exercises": valid_exercises}):
-                    st.success(f"Plan '{plan_name}' saved!")
+                if db.add_plan({"name": plan_name_val, "exercises": valid_exercises}):
+                    st.success(f"Plan '{plan_name_val}' saved!")
                     st.session_state["plan_builder_exercises"] = [{"name": "", "type": "Heavy"}]
                     st.session_state.pop("plan_builder_name", None)
                     st.rerun()
+
+        if is_edit_mode:
+            if col_cancel.button("❌ Cancel", key="pb_cancel"):
+                st.session_state["plan_builder_exercises"] = [{"name": "", "type": "Heavy"}]
+                st.session_state.pop("plan_builder_name", None)
+                st.session_state.pop("plan_editing_id",   None)
+                st.session_state.pop("plan_editing_name", None)
+                st.rerun()
 
     # 2. Existing Plans Management
     st.subheader("📋 Active Plans")
@@ -60,9 +98,19 @@ def render_plan_builder():
     if plans:
         for p in plans:
             with st.container(border=True):
-                c1, c2 = st.columns([4, 1])
+                c1, c2, c3 = st.columns([4, 1, 1])
                 c1.markdown(f"### {p['name']}")
-                if c2.button("🗑️ Delete", key=f"del_{p['id']}"):
+                if c2.button("✏️ Edit", key=f"edit_{p['id']}"):
+                    # Load this plan into editor session state
+                    st.session_state["plan_editing_id"]       = p["id"]
+                    st.session_state["plan_editing_name"]     = p["name"]
+                    st.session_state["plan_builder_exercises"] = [
+                        {"name": ex["name"], "type": ex["type"]}
+                        for ex in p["exercises"]
+                    ]
+                    st.session_state.pop("plan_builder_name", None)
+                    st.rerun()
+                if c3.button("🗑️ Delete", key=f"del_{p['id']}"):
                     if db.delete_plan(p['id']):
                         st.cache_data.clear()
                         st.rerun()

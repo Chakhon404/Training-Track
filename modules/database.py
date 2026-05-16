@@ -41,6 +41,19 @@ class TrainingDB:
             st.error(f"Failed to delete plan: {e}")
             return None
 
+    def update_plan(self, plan_id: str, plan_data: dict):
+        """Update an existing training plan by id."""
+        if not self.is_connected(): return False
+        try:
+            self.supabase.table("training_plans")\
+                .update(plan_data)\
+                .eq("id", plan_id)\
+                .execute()
+            return True
+        except Exception as e:
+            st.error(f"Failed to update plan: {e}")
+            return False
+
     def save_workout(self, workout_data):
         if not self.is_connected(): return False
         try:
