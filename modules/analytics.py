@@ -286,21 +286,25 @@ def render_nutrition_analysis():
     st.divider()
     st.subheader("💊 Supplement Compliance (last 30 days)")
 
-    sup_db_cols = [db_col for json_key, (display, sess_key, db_col) in SUPPLEMENT_MAP.items()]
-    sup_display_names = {db_col: display for json_key, (display, sess_key, db_col) in SUPPLEMENT_MAP.items()}
+    # Load profile to get user's configured supplements
+    profile = fetch_profile_cached(db) or {}
+    default_sups = profile.get("default_supplements") or []
 
-    available_cols = [c for c in sup_db_cols if c in df_nut.columns]
-    if available_cols:
-        compliance = {}
-        for col in available_cols:
-            # fillna(False) because missing in DB means not taken
-            pct = df_nut[col].fillna(False).astype(bool).mean() * 100
-            compliance[sup_display_names.get(col, col)] = round(pct, 1)
+    # Total unique logging days
+    total_days = df_nut['Date_date'].nunique()
 
-        df_comp = pd.DataFrame(
-            list(compliance.items()),
-            columns=["Supplement", "Compliance (%)"]
-        ).sort_values("Compliance (%)", ascending=True)
+    sup_data = []
+    for json_key, (display, sess_key, db_col) in SUPPLEMENT_MAP.items():
+        if json_key not in default_sups:
+            continue
+        if db_col in df_nut.columns:
+            # Group by date first, then check if taken in any meal that day
+            days_taken = int(df_nut.groupby('Date_date')[db_col].any().sum())
+            pct = (days_taken / total_days * 100) if total_days > 0 else 0
+            sup_data.append({"Supplement": display, "Compliance (%)": round(pct, 1)})
+
+    if sup_data:
+        df_comp = pd.DataFrame(sup_data).sort_values("Compliance (%)", ascending=True)
 
         fig_comp = px.bar(
             df_comp,
