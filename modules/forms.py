@@ -192,6 +192,8 @@ def render_workout_form():
         st.session_state.work_plan_name = plan_names[0]
 
     def save_workout_draft():
+        if "work_plan_name" not in st.session_state:
+            return
         now = time.time()
         if now - st.session_state.get("_last_workout_draft_save", 0) < 3:
             return
@@ -423,6 +425,8 @@ def render_running_form():
         st.session_state.run_draft_loaded = True
 
     def save_run_draft():
+        if "run_cat" not in st.session_state:
+            return
         now = time.time()
         if now - st.session_state.get("_last_run_draft_save", 0) < 3:
             return
@@ -462,7 +466,7 @@ def render_running_form():
     with col_t:
         l_time = st.time_input("Time", key="run_time", on_change=save_run_draft)
 
-    cat = st.selectbox("Activity Category", ["Easy", "Tempo", "Interval", "Long", "Walk"], key="run_cat", on_change=save_run_draft)
+    cat = st.selectbox("Activity Category", [ "Zone-2","Easy", "Tempo", "Interval", "Long", "Walk"], key="run_cat", on_change=save_run_draft)
 
     c1, c2 = st.columns(2)
     dist = c1.number_input("Distance (km)", min_value=0.0, step=0.1, key="run_dist", on_change=save_run_draft)
@@ -661,6 +665,8 @@ def render_biohack_form():
         st.session_state.nut_meal_score = 5
 
     def save_nut_draft():
+        if "nut_cal" not in st.session_state:
+            return
         now = time.time()
         if now - st.session_state.get("_last_nut_draft_save", 0) < 3:
             return
@@ -810,6 +816,8 @@ def render_weight_form():
         st.session_state.weight_notes = ""
 
     def save_weight_draft():
+        if "weight_kg" not in st.session_state:
+            return
         now = time.time()
         if now - st.session_state.get("_last_weight_draft_save", 0) < 3:
             return
