@@ -2,6 +2,7 @@ import streamlit as st
 import pandas as pd
 import json
 import time
+import pytz
 from datetime import datetime
 from modules.database import get_db, fetch_profile_cached, fetch_workouts_cached, fetch_plans_cached
 from modules.constants import SUPPLEMENT_MAP
@@ -157,8 +158,10 @@ def render_workout_form():
 
     if "work_draft_loaded" not in st.session_state:
         draft = db.load_draft(form_key) or {}
-        st.session_state.work_date = datetime.now().date()
-        st.session_state.work_time = datetime.now().time()
+        _bkk = pytz.timezone("Asia/Bangkok")
+        _now = datetime.now(_bkk)
+        st.session_state.work_date = _now.date()
+        st.session_state.work_time = _now.time().replace(tzinfo=None)
         
         saved_plan = draft.get("plan_name")
         st.session_state.work_plan_name = saved_plan if saved_plan in plan_names else plan_names[0]
@@ -178,10 +181,13 @@ def render_workout_form():
             st.session_state["_last_snapshot"]  = last_snapshot
 
     # --- Standardized Widget Initialization ---
-    if "work_date" not in st.session_state:
-        st.session_state.work_date = datetime.now().date()
-    if "work_time" not in st.session_state:
-        st.session_state.work_time = datetime.now().time()
+    if "work_date" not in st.session_state or "work_time" not in st.session_state:
+        _bkk = pytz.timezone("Asia/Bangkok")
+        _now = datetime.now(_bkk)
+        if "work_date" not in st.session_state:
+            st.session_state.work_date = _now.date()
+        if "work_time" not in st.session_state:
+            st.session_state.work_time = _now.time().replace(tzinfo=None)
     if "work_plan_name" not in st.session_state:
         st.session_state.work_plan_name = plan_names[0]
 
@@ -405,8 +411,10 @@ def render_running_form():
 
     if "run_draft_loaded" not in st.session_state:
         draft = db.load_draft(form_key) or {}
-        st.session_state.run_date = datetime.now().date()
-        st.session_state.run_time = datetime.now().time()
+        _bkk = pytz.timezone("Asia/Bangkok")
+        _now = datetime.now(_bkk)
+        st.session_state.run_date = _now.date()
+        st.session_state.run_time = _now.time().replace(tzinfo=None)
         st.session_state.run_cat = draft.get("cat", "Easy")
         st.session_state.run_dist = draft.get("dist", 0.0)
         st.session_state.run_dur = draft.get("dur", "00:00")
@@ -430,10 +438,13 @@ def render_running_form():
         db.save_draft(form_key, data)
 
     # --- Standardized Widget Initialization ---
-    if "run_date" not in st.session_state:
-        st.session_state.run_date = datetime.now().date()
-    if "run_time" not in st.session_state:
-        st.session_state.run_time = datetime.now().time()
+    if "run_date" not in st.session_state or "run_time" not in st.session_state:
+        _bkk = pytz.timezone("Asia/Bangkok")
+        _now = datetime.now(_bkk)
+        if "run_date" not in st.session_state:
+            st.session_state.run_date = _now.date()
+        if "run_time" not in st.session_state:
+            st.session_state.run_time = _now.time().replace(tzinfo=None)
     if "run_cat" not in st.session_state:
         st.session_state.run_cat = "Easy"
     if "run_dist" not in st.session_state:
@@ -587,8 +598,10 @@ def render_biohack_form():
 
     if "nut_draft_loaded" not in st.session_state:
         draft = db.load_draft(form_key) or {}
-        st.session_state.nut_date = datetime.strptime(draft.get("date", datetime.now().strftime("%Y-%m-%d")), "%Y-%m-%d").date()
-        st.session_state.nut_time = datetime.strptime(draft.get("time", datetime.now().strftime("%H:%M:%S")), "%H:%M:%S").time()
+        _bkk = pytz.timezone("Asia/Bangkok")
+        _now = datetime.now(_bkk)
+        st.session_state.nut_date = _now.date()
+        st.session_state.nut_time = _now.time().replace(tzinfo=None)
         
         # food_name
         st.session_state.nut_food_name = draft.get("food_name", "")
@@ -627,10 +640,13 @@ def render_biohack_form():
         st.session_state.nut_draft_loaded = True
 
     # --- Standardized Widget Initialization ---
-    if "nut_date" not in st.session_state:
-        st.session_state.nut_date = datetime.now().date()
-    if "nut_time" not in st.session_state:
-        st.session_state.nut_time = datetime.now().time()
+    if "nut_date" not in st.session_state or "nut_time" not in st.session_state:
+        _bkk = pytz.timezone("Asia/Bangkok")
+        _now = datetime.now(_bkk)
+        if "nut_date" not in st.session_state:
+            st.session_state.nut_date = _now.date()
+        if "nut_time" not in st.session_state:
+            st.session_state.nut_time = _now.time().replace(tzinfo=None)
     if "nut_food_name" not in st.session_state:
         st.session_state.nut_food_name = ""
     if "nut_cal" not in st.session_state:
@@ -771,18 +787,23 @@ def render_weight_form():
 
     if "weight_draft_loaded" not in st.session_state:
         draft = db.load_draft(form_key) or {}
-        st.session_state.weight_date = datetime.strptime(draft.get("date", datetime.now().strftime("%Y-%m-%d")), "%Y-%m-%d").date()
-        st.session_state.weight_time = datetime.strptime(draft.get("time", datetime.now().strftime("%H:%M:%S")), "%H:%M:%S").time()
+        _bkk = pytz.timezone("Asia/Bangkok")
+        _now = datetime.now(_bkk)
+        st.session_state.weight_date = _now.date()
+        st.session_state.weight_time = _now.time().replace(tzinfo=None)
         st.session_state.weight_kg = draft.get("weight_kg", 0.0)
         st.session_state.weight_bf = draft.get("weight_bf", 0.0)
         st.session_state.weight_notes = draft.get("weight_notes", "")
         st.session_state.weight_draft_loaded = True
 
     # --- Standardized Widget Initialization ---
-    if "weight_date" not in st.session_state:
-        st.session_state.weight_date = datetime.now().date()
-    if "weight_time" not in st.session_state:
-        st.session_state.weight_time = datetime.now().time()
+    if "weight_date" not in st.session_state or "weight_time" not in st.session_state:
+        _bkk = pytz.timezone("Asia/Bangkok")
+        _now = datetime.now(_bkk)
+        if "weight_date" not in st.session_state:
+            st.session_state.weight_date = _now.date()
+        if "weight_time" not in st.session_state:
+            st.session_state.weight_time = _now.time().replace(tzinfo=None)
     if "weight_kg" not in st.session_state:
         st.session_state.weight_kg = 0.0
     if "weight_notes" not in st.session_state:
