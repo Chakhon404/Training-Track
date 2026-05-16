@@ -1,6 +1,7 @@
 import streamlit as st
 import pandas as pd
 import json
+import time
 from datetime import datetime
 from modules.database import get_db, fetch_profile_cached, fetch_workouts_cached, fetch_plans_cached
 from modules.constants import SUPPLEMENT_MAP
@@ -156,8 +157,8 @@ def render_workout_form():
 
     if "work_draft_loaded" not in st.session_state:
         draft = db.load_draft(form_key) or {}
-        st.session_state.work_date = datetime.strptime(draft.get("date", datetime.now().strftime("%Y-%m-%d")), "%Y-%m-%d").date()
-        st.session_state.work_time = datetime.strptime(draft.get("time", datetime.now().strftime("%H:%M:%S")), "%H:%M:%S").time()
+        st.session_state.work_date = datetime.now().date()
+        st.session_state.work_time = datetime.now().time()
         
         saved_plan = draft.get("plan_name")
         st.session_state.work_plan_name = saved_plan if saved_plan in plan_names else plan_names[0]
@@ -185,6 +186,11 @@ def render_workout_form():
         st.session_state.work_plan_name = plan_names[0]
 
     def save_workout_draft():
+        now = time.time()
+        if now - st.session_state.get("_last_workout_draft_save", 0) < 3:
+            return
+        st.session_state["_last_workout_draft_save"] = now
+
         curr_plan = st.session_state.get("work_plan_name")
         if not curr_plan:
             return
@@ -205,8 +211,6 @@ def render_workout_form():
                 ex_data[f"work_rpe_{i}"] = st.session_state.get(f"work_rpe_{i}", 7.0)
 
         data = {
-            "date": str(st.session_state.work_date),
-            "time": st.session_state.work_time.strftime("%H:%M:%S"),
             "plan_name": curr_plan,
             "exercises": ex_data
         }
@@ -401,8 +405,8 @@ def render_running_form():
 
     if "run_draft_loaded" not in st.session_state:
         draft = db.load_draft(form_key) or {}
-        st.session_state.run_date = datetime.strptime(draft.get("date", datetime.now().strftime("%Y-%m-%d")), "%Y-%m-%d").date()
-        st.session_state.run_time = datetime.strptime(draft.get("time", datetime.now().strftime("%H:%M:%S")), "%H:%M:%S").time()
+        st.session_state.run_date = datetime.now().date()
+        st.session_state.run_time = datetime.now().time()
         st.session_state.run_cat = draft.get("cat", "Easy")
         st.session_state.run_dist = draft.get("dist", 0.0)
         st.session_state.run_dur = draft.get("dur", "00:00")
@@ -411,9 +415,12 @@ def render_running_form():
         st.session_state.run_draft_loaded = True
 
     def save_run_draft():
+        now = time.time()
+        if now - st.session_state.get("_last_run_draft_save", 0) < 3:
+            return
+        st.session_state["_last_run_draft_save"] = now
+
         data = {
-            "date": str(st.session_state.run_date),
-            "time": st.session_state.run_time.strftime("%H:%M:%S"),
             "cat": st.session_state.run_cat,
             "dist": st.session_state.run_dist,
             "dur": st.session_state.run_dur,
@@ -638,6 +645,11 @@ def render_biohack_form():
         st.session_state.nut_meal_score = 5
 
     def save_nut_draft():
+        now = time.time()
+        if now - st.session_state.get("_last_nut_draft_save", 0) < 3:
+            return
+        st.session_state["_last_nut_draft_save"] = now
+
         data = {
             "date": str(st.session_state.nut_date),
             "time": st.session_state.nut_time.strftime("%H:%M:%S"),
@@ -777,6 +789,11 @@ def render_weight_form():
         st.session_state.weight_notes = ""
 
     def save_weight_draft():
+        now = time.time()
+        if now - st.session_state.get("_last_weight_draft_save", 0) < 3:
+            return
+        st.session_state["_last_weight_draft_save"] = now
+
         data = {
             "date": str(st.session_state.weight_date),
             "time": st.session_state.weight_time.strftime("%H:%M:%S"),
