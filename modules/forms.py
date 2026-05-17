@@ -742,49 +742,24 @@ def render_biohack_form():
 
     submitted = st.button("✅ Save Nutrition")
 
-    # Step 1: on submit
     if submitted:
-        date_str = str(l_date)
-        dup_count = db.check_duplicate_nutrition(date_str)
-        if dup_count > 0:
-            st.session_state.nut_show_confirm = True
-            st.session_state.nut_pending_date = date_str
-        else:
-            log_ts = get_timestamp(l_date, l_time)
-            nut_data = {
-                "log_ts": log_ts,
-                "food_name": st.session_state.get("nut_food_name", ""),
-                "calories": cal,
-                "protein_g": p_g,
-                "carbs_g": c_g,
-                "fat_g": f_g,
-                "meal_score": int(st.session_state.get("nut_meal_score", 5)),
-            }
-            for json_key, (display, sess_key, db_col) in SUPPLEMENT_MAP.items():
-                nut_data[db_col] = bool(st.session_state.get(sess_key, False))
-            
-            if db.save_nutrition(nut_data):
-                st.success("✅ Nutrition data saved.")
-                db.clear_draft(form_key)
-                st.session_state.pop("nut_draft_loaded", None)
+        log_ts = get_timestamp(l_date, l_time)
+        nut_data = {
+            "log_ts": log_ts,
+            "food_name": st.session_state.get("nut_food_name", ""),
+            "calories": cal,
+            "protein_g": p_g,
+            "carbs_g": c_g,
+            "fat_g": f_g,
+            "meal_score": int(st.session_state.get("nut_meal_score", 5)),
+        }
+        for json_key, (display, sess_key, db_col) in SUPPLEMENT_MAP.items():
+            nut_data[db_col] = bool(st.session_state.get(sess_key, False))
 
-    # Step 2: show confirmation UI OUTSIDE if submitted
-    if st.session_state.get("nut_show_confirm"):
-        date_str = st.session_state.get("nut_pending_date", "")
-        st.warning(f"⚠️ Duplicate entries found on {date_str}.")
-        col1, col2, col3 = st.columns(3)
-        if col1.button("💾 Save Anyway", key="nut_save_anyway"):
-            st.session_state.nut_confirm_overwrite = True
-            st.session_state.pop("nut_show_confirm", None)
-            st.rerun()
-        if col2.button("🔄 Overwrite (delete old first)", key="nut_overwrite"):
-            st.session_state.nut_confirm_overwrite = True
-            st.session_state.nut_do_overwrite = True
-            st.session_state.pop("nut_show_confirm", None)
-            st.rerun()
-        if col3.button("❌ Cancel", key="nut_cancel"):
-            st.session_state.pop("nut_show_confirm", None)
-            st.session_state.pop("nut_pending_date", None)
+        if db.save_nutrition(nut_data):
+            st.success("✅ Nutrition data saved.")
+            db.clear_draft(form_key)
+            st.session_state.pop("nut_draft_loaded", None)
             st.rerun()
 
 def render_weight_form():

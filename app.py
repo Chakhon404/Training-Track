@@ -1,5 +1,5 @@
 import streamlit as st
-from modules.forms import render_workout_form, render_running_form, render_biohack_form, render_plan_builder, render_weight_form, render_profile_form, process_pending_workout, process_pending_run, process_pending_nutrition, process_pending_weight
+from modules.forms import render_workout_form, render_running_form, render_biohack_form, render_plan_builder, render_weight_form, render_profile_form, process_pending_workout, process_pending_run, process_pending_weight
 from modules.analytics import render_analytics, render_overview, render_nutrition_analysis, render_data_manager, render_export_section, render_wellness
 from modules.database import get_db
 from datetime import date, datetime, timedelta
@@ -67,14 +67,6 @@ def _handle_pending_confirmations(db):
             db.delete_runs_by_date(date_str)
         st.session_state.pop("run_confirm_overwrite", None)
         process_pending_run(db, st.session_state)
-
-   # ── NUTRITION ─────────────────────────────────────────
-    if st.session_state.get("nut_confirm_overwrite"):
-        date_str = str(st.session_state.get("nut_date", ""))
-        if st.session_state.pop("nut_do_overwrite", False):
-            db.delete_nutrition_by_date(date_str)
-        st.session_state.pop("nut_confirm_overwrite", None)
-        process_pending_nutrition(db, st.session_state)
 
     # ── WEIGHT ────────────────────────────────────────────
     if st.session_state.get("weight_confirm_overwrite"):
