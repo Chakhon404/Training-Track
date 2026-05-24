@@ -364,6 +364,67 @@ class TrainingDB:
         except Exception:
             return None
 
+    # --- SESSION HISTORY ---
+
+    def fetch_last_session_by_plan(self, plan_name: str) -> dict:
+        """
+        Returns the most recent workout session rows for a given plan_name.
+        Returns a dict keyed by exercise name:
+        {
+          "Overhead Slam": [
+            {"set_number": 1, "weight": 7.0, "reps": 8, "duration_sec": 0},
+            ...
+          ],
+          ...
+        }
+        Fetches the latest log_ts date for that plan, then all rows on that date.
+        """
+        if not self.is_connected(): return {}
+        try:
+            # 1. Find the most recent date for this plan
+            response = self.supabase.table("workouts")\
+                .select("log_ts")\
+                .eq("plan_name", plan_name)\
+                .order("log_ts", desc=True)\
+                .limit(1)\
+                .execute()
+            
+            if not response.data:
+                return {}
+            
+            latest_ts = response.data[0]["log_ts"]
+            latest_date = latest_ts.split(" ")[0] if " " in latest_ts else latest_ts.split("T")[0]
+
+            # 2. Fetch all rows for that plan on that date
+            response = self.supabase.table("workouts")\
+                .select("*")\
+                .eq("plan_name", plan_name)\
+                .gte("log_ts", f"{latest_date} 00:00:00")\
+                .lte("log_ts", f"{latest_date} 23:59:59")\
+                .execute()
+            
+            if not response.data:
+                return {}
+            
+            # 3. Group by exercise and preserve order (sorted by log_ts)
+            sorted_data = sorted(response.data, key=lambda x: (x.get("log_ts"), x.get("set_number", 0)))
+            
+            grouped = {}
+            for row in sorted_data:
+                ex = row["exercise"]
+                if ex not in grouped:
+                    grouped[ex] = []
+                grouped[ex].append({
+                    "set_number": row.get("set_number", len(grouped[ex]) + 1),
+                    "weight": row.get("weight", 0.0),
+                    "reps": row.get("reps", 0),
+                    "duration_sec": row.get("duration_sec", 0),
+                    "date": latest_date
+                })
+            return grouped
+        except Exception:
+            return {}
+
     # --- WELLNESS ---
 
     def fetch_wellness(self, days: int = 30):
@@ -451,4 +512,8 @@ def fetch_workouts_cached(_db):
 def fetch_plans_cached(_db):
     """Cached wrapper for fetch_plans(). TTL=300s (plans change rarely)."""
     return _db.fetch_plans()
+
+@st.cache_data(ttl=120)
+def fetch_last_session_cached(_db, plan_name: str) -> dict:
+    return _db.fetch_last_session_by_plan(plan_name)
 

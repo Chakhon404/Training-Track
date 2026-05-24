@@ -4,7 +4,7 @@ import json
 import time
 import pytz
 from datetime import datetime
-from modules.database import get_db, fetch_profile_cached, fetch_workouts_cached, fetch_plans_cached
+from modules.database import get_db, fetch_profile_cached, fetch_workouts_cached, fetch_plans_cached, fetch_last_session_cached
 from modules.constants import SUPPLEMENT_MAP
 
 def get_timestamp(log_date, log_time):
@@ -156,6 +156,16 @@ def render_workout_form():
     plan_names = [p['name'] for p in plans]
     form_key = f"draft_workout_{st.session_state.get('user_id', 'default')}"
 
+    # --- Plan Change Handling ---
+    def on_plan_change():
+        curr_plan = st.session_state.get("work_plan_name")
+        # Clear all dynamic keys when plan changes
+        keys_to_clear = [k for k in st.session_state.keys() if k.startswith(("work_nsets_", "work_w_", "work_r_", "work_d_", "work_done_", "work_last_", "work_rpe_"))]
+        for k in keys_to_clear:
+            st.session_state.pop(k, None)
+        # Also clear the draft in DB for the old plan to avoid confusion
+        db.clear_draft(form_key)
+
     if "work_draft_loaded" not in st.session_state:
         draft = db.load_draft(form_key) or {}
         _bkk = pytz.timezone("Asia/Bangkok")
@@ -169,16 +179,28 @@ def render_workout_form():
         dyn_fields = draft.get("exercises", {})
         for k, v in dyn_fields.items():
             st.session_state[k] = v
+
+        if not draft:
+            _last = db.fetch_last_session_by_plan(
+                st.session_state.get("work_plan_name", plan_names[0])
+            )
+            _selected = next(
+                (p for p in plans if p["name"] == st.session_state.get("work_plan_name", plan_names[0])),
+                None
+            )
+            if _last and _selected:
+                for _i, _ex in enumerate(_selected["exercises"]):
+                    _sets = _last.get(_ex["name"], [])
+                    if _sets:
+                        st.session_state[f"work_nsets_{_i}"] = len(_sets)
+                        for _s, _row in enumerate(_sets):
+                            st.session_state[f"work_w_{_i}_{_s}"]      = _row.get("weight", 0.0)
+                            st.session_state[f"work_r_{_i}_{_s}"]      = _row.get("reps", 0)
+                            st.session_state[f"work_d_{_i}_{_s}"]      = _row.get("duration_sec", 0)
+                            st.session_state[f"work_last_w_{_i}_{_s}"] = _row.get("weight", 0.0)
+                            st.session_state[f"work_last_r_{_i}_{_s}"] = _row.get("reps", 0)
             
         st.session_state.work_draft_loaded = True
-
-        # --- Load Last Session offer ---
-        last_key = f"last_workout_{st.session_state.get('user_id', 'default')}"
-        last_snapshot = db.load_draft(last_key)
-
-        if not draft and last_snapshot:
-            st.session_state["_show_load_last"] = True
-            st.session_state["_last_snapshot"]  = last_snapshot
 
     # --- Standardized Widget Initialization ---
     if "work_date" not in st.session_state or "work_time" not in st.session_state:
@@ -209,14 +231,15 @@ def render_workout_form():
             for i, ex in enumerate(selected_plan['exercises']):
                 nsets = st.session_state.get(f"work_nsets_{i}", 3)
                 ex_data[f"work_nsets_{i}"] = nsets
+                ex_data[f"work_rpe_{i}"] = st.session_state.get(f"work_rpe_{i}", 7.0)
                 for s in range(nsets):
+                    ex_data[f"work_done_{i}_{s}"] = st.session_state.get(f"work_done_{i}_{s}", False)
                     if ex['type'] != "Bodyweight":
                         ex_data[f"work_w_{i}_{s}"] = st.session_state.get(f"work_w_{i}_{s}", 0.0)
                     if ex['type'] == "Timed":
                         ex_data[f"work_d_{i}_{s}"] = st.session_state.get(f"work_d_{i}_{s}", 0)
                     else:
                         ex_data[f"work_r_{i}_{s}"] = st.session_state.get(f"work_r_{i}_{s}", 0)
-                ex_data[f"work_rpe_{i}"] = st.session_state.get(f"work_rpe_{i}", 7.0)
 
         data = {
             "plan_name": curr_plan,
@@ -224,29 +247,38 @@ def render_workout_form():
         }
         db.save_draft(form_key, data)
 
-    if st.session_state.get("_show_load_last"):
-        last = st.session_state.get("_last_snapshot", {})
-        last_plan = last.get("plan_name", "")
-        last_date = last.get("date", "")
-        st.info(f"📋 Last session: **{last_plan}** on {last_date}")
-        col_yes, col_no = st.columns(2)
-        if col_yes.button("✅ Load Last Session", key="load_last_yes"):
-            # Apply snapshot values into session state
-            ex_data = last.get("exercises", {})
-            for k, v in ex_data.items():
-                st.session_state[k] = v
-            if last_plan in plan_names:
-                st.session_state.work_plan_name = last_plan
-            st.session_state.pop("_show_load_last", None)
-            st.session_state.pop("_last_snapshot",  None)
-            st.rerun()
-        if col_no.button("❌ Start Fresh", key="load_last_no"):
-            st.session_state.pop("_show_load_last", None)
-            st.session_state.pop("_last_snapshot",  None)
-            st.rerun()
-
-    selected_plan_name = st.selectbox("Select Training Plan", plan_names, key="work_plan_name", on_change=save_workout_draft)
+    selected_plan_name = st.selectbox("Select Training Plan", plan_names, key="work_plan_name", on_change=on_plan_change)
     selected_plan = next(p for p in plans if p['name'] == selected_plan_name)
+
+    # --- Auto-populate from Last Session ---
+    last_session = fetch_last_session_cached(db, selected_plan_name)
+    
+    # Initialize defaults if not already in session state
+    for i, ex in enumerate(selected_plan['exercises']):
+        ex_name = ex['name']
+        if ex_name in last_session:
+            history_sets = last_session[ex_name]
+            # Populate nsets if not set
+            if f"work_nsets_{i}" not in st.session_state:
+                st.session_state[f"work_nsets_{i}"] = len(history_sets)
+            
+            for s, hset in enumerate(history_sets):
+                # Store history for PR check
+                st.session_state[f"work_last_w_{i}_{s}"] = hset["weight"]
+                st.session_state[f"work_last_r_{i}_{s}"] = hset["reps"]
+                st.session_state[f"work_last_d_{i}_{s}"] = hset["duration_sec"]
+                
+                # Populate inputs if not set
+                if f"work_w_{i}_{s}" not in st.session_state:
+                    st.session_state[f"work_w_{i}_{s}"] = hset["weight"]
+                if f"work_r_{i}_{s}" not in st.session_state:
+                    st.session_state[f"work_r_{i}_{s}"] = hset["reps"]
+                if f"work_d_{i}_{s}" not in st.session_state:
+                    st.session_state[f"work_d_{i}_{s}"] = hset["duration_sec"]
+        
+        # Ensure nsets has a default
+        if f"work_nsets_{i}" not in st.session_state:
+            st.session_state[f"work_nsets_{i}"] = 3
 
     # Fetch latest weight for volume calculation
     latest_weight_entry = db.fetch_weight()
@@ -267,62 +299,169 @@ def render_workout_form():
     with col_t:
         l_time = st.time_input("Time", key="work_time", on_change=save_workout_draft)
 
-    session_results = []
     for i, ex in enumerate(selected_plan['exercises']):
         ex_n = ex['name']
         ex_t = ex['type']
 
-        # --- Standardized Widget Initialization ---
-        if f"work_nsets_{i}" not in st.session_state:
-            st.session_state[f"work_nsets_{i}"] = 3
-        
-        nsets = st.session_state[f"work_nsets_{i}"]
-        for s in range(nsets):
-            if f"work_w_{i}_{s}" not in st.session_state:
-                st.session_state[f"work_w_{i}_{s}"] = 0.0
-            if f"work_r_{i}_{s}" not in st.session_state:
-                st.session_state[f"work_r_{i}_{s}"] = 0
-            if f"work_d_{i}_{s}" not in st.session_state:
-                st.session_state[f"work_d_{i}_{s}"] = 0
-
         st.markdown(f"#### {ex_n} ({ex_t})")
-        history = db.fetch_exercise_history(ex_n)
-        if history:
-            import pandas as pd
-            hist_str = " → ".join([
-                f"{h['weight']}kg × {h['sets']}×{h['reps']} @ RPE {h['rpe']}"
-                if h['weight'] > 0 else
-                f"{h['sets']}×{h['reps']} @ RPE {h['rpe']}"
-                for h in history
-            ])
-            st.caption(f"📊 Last {len(history)}: {hist_str}")
-
-        # Per-Set Input UI
-        st.number_input("Number of Sets", min_value=1, max_value=20, step=1, key=f"work_nsets_{i}", on_change=save_workout_draft)
         
-        if ex_t == "Timed":
-            st.markdown("**Set | Duration (sec)**")
-        elif ex_t == "Bodyweight":
-            st.markdown("**Set | Reps**")
+        # Last Session Summary Caption
+        if ex_n in last_session:
+            h_sets = last_session[ex_n]
+            h_date = h_sets[0]["date"]
+            h_details = []
+            for h in h_sets:
+                if ex_t == "Timed": h_details.append(f"{h['duration_sec']}s")
+                elif ex_t == "Bodyweight": h_details.append(f"{h['reps']}r")
+                else: h_details.append(f"{h['weight']}kg × {h['reps']}")
+            st.caption(f"📅 Last {h_date}: {len(h_sets)} sets • {' | '.join(h_details)}")
         else:
-            st.markdown("**Set | Weight (kg) | Reps**")
+            st.caption("No history for this exercise in this plan.")
 
-        for s in range(st.session_state[f"work_nsets_{i}"]):
-            cols = st.columns([0.5, 1, 1])
-            cols[0].markdown(f"**{s+1}**")
-            
+        # --- Volume Delta Calculation ---
+        # Current session volume
+        curr_vol = 0.0
+        nsets_i = st.session_state.get(f"work_nsets_{i}", 0)
+        for s in range(nsets_i):
+            w = float(st.session_state.get(f"work_w_{i}_{s}", 0.0))
+            r = int(st.session_state.get(f"work_r_{i}_{s}", 0))
+            d = int(st.session_state.get(f"work_d_{i}_{s}", 0))
             if ex_t == "Heavy":
-                w = cols[1].number_input("Weight", label_visibility="collapsed", min_value=0.0, step=0.5, key=f"work_w_{i}_{s}", on_change=save_workout_draft)
-                r = cols[2].number_input("Reps", label_visibility="collapsed", min_value=0, step=1, key=f"work_r_{i}_{s}", on_change=save_workout_draft)
-                d = 0
+                curr_vol += w * r
+            elif ex_t == "Bodyweight":
+                curr_vol += bodyweight_kg * r
             elif ex_t == "Timed":
-                w = 0.0
-                r = 0
-                d = cols[1].number_input("Duration", label_visibility="collapsed", min_value=0, step=5, key=f"work_d_{i}_{s}", on_change=save_workout_draft)
-            else: # Bodyweight
-                w = 0.0
-                d = 0
-                r = cols[1].number_input("Reps", label_visibility="collapsed", min_value=0, step=1, key=f"work_r_{i}_{s}", on_change=save_workout_draft)
+                curr_vol += bodyweight_kg * (d / 60)
+
+        # Last session volume
+        last_sets = last_session.get(ex_n, [])
+        last_vol = 0.0
+        for row in last_sets:
+            w = float(row.get("weight", 0.0))
+            r = int(row.get("reps", 0))
+            d = int(row.get("duration_sec", 0))
+            if ex_t == "Heavy":
+                last_vol += w * r
+            elif ex_t == "Bodyweight":
+                last_vol += bodyweight_kg * r
+            elif ex_t == "Timed":
+                last_vol += bodyweight_kg * (d / 60)
+
+        # Display delta
+        if last_vol > 0:
+            delta_pct = ((curr_vol - last_vol) / last_vol) * 100
+            arrow = "▲" if delta_pct >= 0 else "▼"
+            color = "green" if delta_pct >= 0 else "orange"
+            st.markdown(
+                f"📊 Volume: **{curr_vol:.0f} kg** "
+                f"<span style='color:{color}'>{arrow} {abs(delta_pct):.1f}%</span> vs last session",
+                unsafe_allow_html=True
+            )
+
+        # Per-Set UI
+        nsets = st.session_state[f"work_nsets_{i}"]
+        
+        # Header Row
+        if ex_t == "Heavy":
+            h_cols = st.columns([0.4, 1, 1, 0.5, 0.5, 0.5])
+            h_cols[0].caption("Set")
+            h_cols[1].caption("Weight")
+            h_cols[2].caption("Reps")
+            h_cols[3].caption("PR")
+            h_cols[4].caption("Done")
+            h_cols[5].caption("")
+        elif ex_t == "Timed":
+            h_cols = st.columns([0.4, 2, 0.5, 0.5, 0.5])
+            h_cols[0].caption("Set")
+            h_cols[1].caption("Duration (s)")
+            h_cols[2].caption("PR")
+            h_cols[3].caption("Done")
+            h_cols[4].caption("")
+        else: # Bodyweight
+            h_cols = st.columns([0.4, 2, 0.5, 0.5, 0.5])
+            h_cols[0].caption("Set")
+            h_cols[1].caption("Reps")
+            h_cols[2].caption("PR")
+            h_cols[3].caption("Done")
+            h_cols[4].caption("")
+
+        for s in range(nsets):
+            # Checkbox state for "Done"
+            is_done = st.session_state.get(f"work_done_{i}_{s}", False)
+            
+            # Use a container to potentially highlight the row
+            row_container = st.container()
+            with row_container:
+                if ex_t == "Heavy":
+                    cols = st.columns([0.4, 1, 1, 0.5, 0.5, 0.5])
+                    cols[0].markdown(f"**{s+1}**")
+                    w = cols[1].number_input("W", label_visibility="collapsed", min_value=0.0, step=0.5, key=f"work_w_{i}_{s}", on_change=save_workout_draft)
+                    r = cols[2].number_input("R", label_visibility="collapsed", min_value=0, step=1, key=f"work_r_{i}_{s}", on_change=save_workout_draft)
+                    
+                    # PR Check
+                    last_w = st.session_state.get(f"work_last_w_{i}_{s}", 0.0)
+                    last_r = st.session_state.get(f"work_last_r_{i}_{s}", 0)
+                    if (w > last_w or r > last_r) and (last_w > 0 or last_r > 0):
+                        cols[3].markdown("🏆", help="Personal Record!")
+                    
+                    cols[4].checkbox("✅", label_visibility="collapsed", key=f"work_done_{i}_{s}")
+                    if nsets > 1:
+                        if cols[5].button("✕", key=f"rm_set_{i}_{s}"):
+                            # shift values down
+                            for ss in range(s, nsets - 1):
+                                st.session_state[f"work_w_{i}_{ss}"] = st.session_state.get(f"work_w_{i}_{ss+1}", 0.0)
+                                st.session_state[f"work_r_{i}_{ss}"] = st.session_state.get(f"work_r_{i}_{ss+1}", 0)
+                                st.session_state[f"work_done_{i}_{ss}"] = st.session_state.get(f"work_done_{i}_{ss+1}", False)
+                            st.session_state[f"work_nsets_{i}"] -= 1
+                            st.rerun()
+
+                elif ex_t == "Timed":
+                    cols = st.columns([0.4, 2, 0.5, 0.5, 0.5])
+                    cols[0].markdown(f"**{s+1}**")
+                    d = cols[1].number_input("D", label_visibility="collapsed", min_value=0, step=5, key=f"work_d_{i}_{s}", on_change=save_workout_draft)
+                    
+                    # PR Check
+                    last_d = st.session_state.get(f"work_last_d_{i}_{s}", 0)
+                    if d > last_d and last_d > 0:
+                        cols[2].markdown("🏆", help="Personal Record!")
+
+                    cols[3].checkbox("✅", label_visibility="collapsed", key=f"work_done_{i}_{s}")
+                    if nsets > 1:
+                        if cols[4].button("✕", key=f"rm_set_{i}_{s}"):
+                            for ss in range(s, nsets - 1):
+                                st.session_state[f"work_d_{i}_{ss}"] = st.session_state.get(f"work_d_{i}_{ss+1}", 0)
+                                st.session_state[f"work_done_{i}_{ss}"] = st.session_state.get(f"work_done_{i}_{ss+1}", False)
+                            st.session_state[f"work_nsets_{i}"] -= 1
+                            st.rerun()
+                else: # Bodyweight
+                    cols = st.columns([0.4, 2, 0.5, 0.5, 0.5])
+                    cols[0].markdown(f"**{s+1}**")
+                    r = cols[1].number_input("R", label_visibility="collapsed", min_value=0, step=1, key=f"work_r_{i}_{s}", on_change=save_workout_draft)
+                    
+                    # PR Check
+                    last_r = st.session_state.get(f"work_last_r_{i}_{s}", 0)
+                    if r > last_r and last_r > 0:
+                        cols[2].markdown("🏆", help="Personal Record!")
+
+                    cols[3].checkbox("✅", label_visibility="collapsed", key=f"work_done_{i}_{s}")
+                    if nsets > 1:
+                        if cols[4].button("✕", key=f"rm_set_{i}_{s}"):
+                            for ss in range(s, nsets - 1):
+                                st.session_state[f"work_r_{i}_{ss}"] = st.session_state.get(f"work_r_{i}_{ss+1}", 0)
+                                st.session_state[f"work_done_{i}_{ss}"] = st.session_state.get(f"work_done_{i}_{ss+1}", False)
+                            st.session_state[f"work_nsets_{i}"] -= 1
+                            st.rerun()
+            
+            # Apply visual highlight if done
+            if is_done:
+                st.markdown(
+                    f"""<style>div[data-testid="stVerticalBlock"] > div:nth-child({(s*2)+3}) {{ border-left: 5px solid green; padding-left: 10px; }}</style>""", 
+                    unsafe_allow_html=True
+                )
+
+        if st.button(f"➕ Add Set", key=f"add_set_{i}"):
+            st.session_state[f"work_nsets_{i}"] += 1
+            st.rerun()
 
         rpe_key = f"work_rpe_{i}"
         if rpe_key not in st.session_state:
@@ -371,7 +510,8 @@ def render_workout_form():
                             "reps": r,
                             "rpe": rpe,
                             "volume": volume,
-                            "duration_sec": d
+                            "duration_sec": d,
+                            "set_number": s + 1
                         })
 
             if final_rows:
@@ -383,7 +523,12 @@ def render_workout_form():
                     db.save_draft(last_key, _build_workout_snapshot(
                         selected_plan_name, selected_plan, l_date, l_time, st.session_state
                     ))
+                    # Clear session state for next fresh load
+                    keys_to_clear = [k for k in st.session_state.keys() if k.startswith(("work_nsets_", "work_w_", "work_r_", "work_d_", "work_done_", "work_last_", "work_rpe_"))]
+                    for k in keys_to_clear:
+                        st.session_state.pop(k, None)
                     st.session_state.pop("work_draft_loaded", None)
+                    st.rerun()
             else:
                 st.warning("No entries with reps/duration > 0. Nothing saved.")
 
@@ -539,6 +684,12 @@ def render_biohack_form():
     st.subheader("🍱 Nutrition Log")
     form_key = f"draft_nutrition_{st.session_state.get('user_id', 'default')}"
 
+    # Determine if today already has a saved nutrition entry
+    _bkk = pytz.timezone("Asia/Bangkok")
+    today_str = str(datetime.now(_bkk).date())
+    today_entries = db.fetch_nutrition_by_date(today_str)
+    sups_locked = len(today_entries) > 0
+
     # ── JSON Quick Fill ──────────────────────────────────
     with st.expander("⚡ Quick Fill", expanded=False):
         st.caption("Paste JSON from your Gemini Gem to auto-fill the form below.")
@@ -611,10 +762,6 @@ def render_biohack_form():
         st.session_state.nut_food_name = draft.get("food_name", "")
         
         # Try to pre-fill supplements from today's entries first
-        _bkk = pytz.timezone("Asia/Bangkok")
-        today_str = str(datetime.now(_bkk).date())
-        today_entries = db.fetch_nutrition_by_date(today_str)
-
         if draft:
             # Draft exists — load supplements from draft as before
             for json_key, (display, sess_key, db_col) in SUPPLEMENT_MAP.items():
@@ -712,6 +859,9 @@ def render_biohack_form():
     if not sup_keys:
         st.info("💡 No supplements configured. Go to ⚙️ System → 👤 Edit Profile & Goals to add your supplements.")
     else:
+        if sups_locked:
+            st.caption("✅ Supplements already logged for today — cannot be changed.")
+
         cols_per_row = 4
         for row_start in range(0, len(sup_keys), cols_per_row):
             row_keys = sup_keys[row_start:row_start + cols_per_row]
@@ -720,7 +870,12 @@ def render_biohack_form():
                 display, sess_key, db_col = SUPPLEMENT_MAP[json_key]
                 if sess_key not in st.session_state:
                     st.session_state[sess_key] = json_key in default_sups
-                col.checkbox(display, key=sess_key, on_change=save_nut_draft)
+                col.checkbox(
+                    display,
+                    key=sess_key,
+                    on_change=save_nut_draft if not sups_locked else None,
+                    disabled=sups_locked
+                )
 
     st.divider()
     st.markdown("### Energy & Macros")
