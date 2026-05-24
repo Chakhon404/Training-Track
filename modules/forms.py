@@ -1163,3 +1163,122 @@ def render_today_training_summary():
                         hide_index=False,
                         use_container_width=True
                     )
+
+def render_exercise_history_card():
+    import pandas as pd
+    import streamlit as st
+    
+    db = get_db()
+    
+    st.header("📊 Open Exercise History")
+    st.markdown("### 📋 Active Plans")
+    
+    # 1. Fetch active workout templates/plans from database
+    # Attempts common method names based on typical architecture
+    if hasattr(db, 'fetch_plans'):
+        active_plans = db.fetch_plans()
+    elif hasattr(db, 'get_plans'):
+        active_plans = db.get_plans()
+    elif hasattr(db, 'get_workout_plans'):
+        active_plans = db.get_workout_plans()
+    else:
+        # Fallback query if precise method name differs
+        active_plans = db.fetch_workouts() 
+        
+    # 2. Fetch historical workout logs
+    all_workouts = db.fetch_workouts()
+    if not all_workouts:
+        st.info("No workout history data found yet.")
+        return
+
+    # Convert logs to DataFrame and normalize timestamps to dates
+    df_all = pd.DataFrame(all_workouts)
+    try:
+        df_all['log_ts'] = pd.to_datetime(df_all['log_ts'], format='ISO8601', utc=True).dt.tz_convert(None)
+        df_all['date'] = df_all['log_ts'].dt.date
+    except Exception:
+        if 'date' not in df_all.columns and 'log_ts' in df_all.columns:
+            df_all['date'] = pd.to_datetime(df_all['log_ts']).dt.date
+
+    # Ensure metric columns are fully numeric to avoid format crashes
+    for col in ['weight', 'reps', 'duration_sec', 'volume']:
+        if col in df_all.columns:
+            df_all[col] = pd.to_numeric(df_all[col], errors='coerce').fillna(0)
+        else:
+            df_all[col] = 0
+
+    # If active_plans failed to fetch or is just a raw logs dump, group dynamically
+    if not active_plans or not isinstance(active_plans, list):
+        st.warning("Could not map active template structures. Displaying global exercise groups instead.")
+        # Create a pseudo-plan group from unique exercises in history
+        unique_exercises = sorted(df_all['exercise'].unique().tolist())
+        active_plans = [{"name": "Global Active Routines", "exercises": [{"name": ex, "type": "Heavy"} for ex in unique_exercises]}]
+
+    # 3. Relational Grouping Engine Loop
+    for plan in active_plans:
+        # Check if plan dict has a valid name and exercise list
+        plan_name = plan.get('name', 'Unnamed Plan')
+        plan_exercises = plan.get('exercises', [])
+        if not plan_exercises:
+            continue
+            
+        st.markdown(f"#### 🏋️ {plan_name}")
+        
+        # Track if this plan actually rendered any valid history output
+        has_history_output = False
+        
+        for ex_obj in plan_exercises:
+            # Handle both string arrays and object dict arrays seamlessly
+            if isinstance(ex_obj, dict):
+                ex_name = ex_obj.get('name', '')
+                ex_type = ex_obj.get('type', 'Heavy')
+            else:
+                ex_name = str(ex_obj)
+                ex_type = 'Heavy'
+                
+            if not ex_name:
+                continue
+                
+            # Filter history logs down to this specific exercise name
+            df_ex = df_all[df_all['exercise'].str.lower() == ex_name.lower()].copy()
+            if df_ex.empty:
+                continue
+                
+            has_history_output = True
+            st.markdown(f"**{ex_name}** *(Type: {ex_type})*")
+            
+            # Sort chronologically descending to target newest workouts first
+            df_ex = df_ex.sort_values(by=['date', 'log_ts'], ascending=[False, True])
+            
+            # Throttling Guard: Isolate only the 1 or 2 most recent distinct session dates
+            recent_dates = df_ex['date'].unique()[:2]
+            
+            for target_date in recent_dates:
+                # Format current date context nicely
+                date_str = target_date.strftime('%d %b %Y')
+                st.markdown(f"📅 {date_str}")
+                
+                # Filter rows for this specific session date
+                df_session = df_ex[df_ex['date'] == target_date]
+                
+                # Parse and render every single set/round logged
+                for idx, row in enumerate(df_session.itertuples(), start=1):
+                    # Type-Based Metrics Parsing Layout Rules
+                    if str(ex_type).lower() == 'timed':
+                        sec_val = int(getattr(row, 'duration_sec', 0))
+                        st.markdown(f"*   ยก {idx}: {sec_val}วิ")
+                    elif str(ex_type).lower() == 'bodyweight':
+                        rep_val = int(getattr(row, 'reps', 0))
+                        weight_val = float(getattr(row, 'weight', 0))
+                        if weight_val > 0:
+                            st.markdown(f"*   round {idx}: +{weight_val:.1f} kg x {rep_val} rep")
+                        else:
+                            st.markdown(f"*   round {idx}: {rep_val} rep")
+                    else: # Default/Heavy Weight Training
+                        weight_val = float(getattr(row, 'weight', 0))
+                        rep_val = int(getattr(row, 'reps', 0))
+                        st.markdown(f"*   round {idx}: {weight_val:.1f} kg x {rep_val} rep")
+            st.write("") # Micro-spacing between exercises
+            
+        if has_history_output:
+            st.divider()
