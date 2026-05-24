@@ -1,5 +1,5 @@
 import streamlit as st
-from modules.forms import render_workout_form, render_running_form, render_biohack_form, render_plan_builder, render_weight_form, render_profile_form, process_pending_workout, process_pending_run, process_pending_weight
+from modules.forms import render_workout_form, render_running_form, render_biohack_form, render_plan_builder, render_weight_form, render_profile_form, process_pending_workout, process_pending_run, process_pending_weight, render_exercise_history_card
 from modules.analytics import render_analytics, render_overview, render_nutrition_analysis, render_data_manager, render_export_section, render_wellness
 from modules.database import get_db
 from datetime import date, datetime, timedelta
@@ -113,18 +113,26 @@ def main():
             
         st.divider()
         if db.is_connected():
+            show_history = st.toggle("📊 Open Exercise History", value=False)
             show_plan_builder = st.toggle("🛠️ Open Plan Builder", value=False)
             show_profile = st.toggle("👤 Edit Profile & Goals", value=False)
         else:
+            show_history = False
             show_plan_builder = False
             show_profile = False
+            st.warning("Database offline. Cannot load sidebar tools.")
 
     # --- APP HEADER ---
     st.title("🎯 Training & Health Track")
     st.markdown("---")
 
+    # ── FULL-SCREEN TOOL ROUTING ──
     if show_profile:
         render_profile_form()
+        st.stop()
+
+    if show_history:
+        render_exercise_history_card()
         st.stop()
 
     if show_plan_builder:
