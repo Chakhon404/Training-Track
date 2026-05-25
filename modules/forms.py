@@ -860,7 +860,7 @@ def render_biohack_form():
         st.info("💡 No supplements configured. Go to ⚙️ System → 👤 Edit Profile & Goals to add your supplements.")
     else:
         if sups_locked:
-            st.caption("✅ Supplements already logged for today — cannot be changed.")
+            st.caption("💡 Supplements already logged today — adjust if needed.")
 
         cols_per_row = 4
         for row_start in range(0, len(sup_keys), cols_per_row):
@@ -873,8 +873,7 @@ def render_biohack_form():
                 col.checkbox(
                     display,
                     key=sess_key,
-                    on_change=save_nut_draft if not sups_locked else None,
-                    disabled=sups_locked
+                    on_change=save_nut_draft
                 )
 
     st.divider()
