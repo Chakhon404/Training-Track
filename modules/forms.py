@@ -361,30 +361,6 @@ def render_workout_form():
         # Per-Set UI
         nsets = st.session_state[f"work_nsets_{i}"]
         
-        # Header Row
-        if ex_t == "Heavy":
-            h_cols = st.columns([0.4, 1, 1, 0.5, 0.5, 0.5])
-            h_cols[0].caption("Set")
-            h_cols[1].caption("Weight")
-            h_cols[2].caption("Reps")
-            h_cols[3].caption("PR")
-            h_cols[4].caption("Done")
-            h_cols[5].caption("")
-        elif ex_t == "Timed":
-            h_cols = st.columns([0.4, 2, 0.5, 0.5, 0.5])
-            h_cols[0].caption("Set")
-            h_cols[1].caption("Duration (s)")
-            h_cols[2].caption("PR")
-            h_cols[3].caption("Done")
-            h_cols[4].caption("")
-        else: # Bodyweight
-            h_cols = st.columns([0.4, 2, 0.5, 0.5, 0.5])
-            h_cols[0].caption("Set")
-            h_cols[1].caption("Reps")
-            h_cols[2].caption("PR")
-            h_cols[3].caption("Done")
-            h_cols[4].caption("")
-
         for s in range(nsets):
             # Checkbox state for "Done"
             is_done = st.session_state.get(f"work_done_{i}_{s}", False)
@@ -393,7 +369,7 @@ def render_workout_form():
             row_container = st.container()
             with row_container:
                 if ex_t == "Heavy":
-                    cols = st.columns([0.4, 1, 1, 0.5, 0.5, 0.5])
+                    cols = st.columns([0.3, 1, 1, 0.4, 0.4, 0.3])
                     cols[0].markdown(f"**{s+1}**")
                     w = cols[1].number_input("W", label_visibility="collapsed", min_value=0.0, step=0.5, key=f"work_w_{i}_{s}", on_change=save_workout_draft)
                     r = cols[2].number_input("R", label_visibility="collapsed", min_value=0, step=1, key=f"work_r_{i}_{s}", on_change=save_workout_draft)
@@ -416,7 +392,7 @@ def render_workout_form():
                             st.rerun()
 
                 elif ex_t == "Timed":
-                    cols = st.columns([0.4, 2, 0.5, 0.5, 0.5])
+                    cols = st.columns([0.3, 2, 0.4, 0.4, 0.3])
                     cols[0].markdown(f"**{s+1}**")
                     d = cols[1].number_input("D", label_visibility="collapsed", min_value=0, step=5, key=f"work_d_{i}_{s}", on_change=save_workout_draft)
                     
@@ -434,7 +410,7 @@ def render_workout_form():
                             st.session_state[f"work_nsets_{i}"] -= 1
                             st.rerun()
                 else: # Bodyweight
-                    cols = st.columns([0.4, 2, 0.5, 0.5, 0.5])
+                    cols = st.columns([0.3, 2, 0.4, 0.4, 0.3])
                     cols[0].markdown(f"**{s+1}**")
                     r = cols[1].number_input("R", label_visibility="collapsed", min_value=0, step=1, key=f"work_r_{i}_{s}", on_change=save_workout_draft)
                     
