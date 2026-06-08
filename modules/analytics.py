@@ -6,7 +6,11 @@ import os
 import json
 from datetime import datetime, timedelta
 import pytz
-from modules.database import get_db, fetch_profile_cached, fetch_workouts_cached
+from modules.database import (
+    get_db, fetch_profile_cached, fetch_workouts_cached,
+    fetch_nutrition_cached, fetch_weight_cached, fetch_wellness_cached,
+    fetch_today_summary_cached
+)
 from modules.constants import SUPPLEMENT_MAP
 from modules.forms import render_today_training_summary
 
@@ -99,7 +103,7 @@ def render_analytics():
     GOAL_WEIGHT = profile.get("goal_weight_kg") or 64.0
 
     with st.spinner("Fetching data..."):
-        weight_data = db.fetch_weight()
+        weight_data = fetch_weight_cached(db)
         df_weight = pd.DataFrame(weight_data)
         if not df_weight.empty:
             df_weight = df_weight.rename(columns={'log_ts': 'Date', 'weight': 'Weight'})
@@ -187,7 +191,7 @@ def render_nutrition_analysis():
         "Fat": GOAL_FAT
     }
     
-    nutrition_data = db.fetch_nutrition()
+    nutrition_data = fetch_nutrition_cached(db)
     if not nutrition_data:
         st.info("No logs found.")
         return
@@ -334,24 +338,15 @@ def render_overview():
     GOAL_WEIGHT = profile.get("goal_weight_kg") or None
     
     with st.spinner("Loading Today's Summary..."):
-        work_today_raw = db.fetch_workouts_by_date(str(today))
-        run_today_raw = db.fetch_runs_by_date(str(today))
-        nut_today_raw = db.fetch_nutrition_by_date(str(today))
-        weight_today_raw = db.fetch_weight_by_date(str(today))
-
-        df_work = pd.DataFrame(work_today_raw)
-        df_run = pd.DataFrame(run_today_raw)
-        df_nut = pd.DataFrame(nut_today_raw)
-        df_weight = pd.DataFrame(weight_today_raw)
-
-        # Re-map legacy variable names to the new DataFrames for compatibility
-        work_today = df_work
-        run_today = df_run
-        nut_today = df_nut
-        weight_today = df_weight
+        summary = fetch_today_summary_cached(db, str(today))
+        
+        work_today = pd.DataFrame(summary["work"])
+        run_today = pd.DataFrame(summary["run"])
+        nut_today = pd.DataFrame(summary["nut"])
+        weight_today = pd.DataFrame(summary["weight"])
 
     # Fetch latest wellness for Readiness
-    wellness = db.fetch_wellness(days=1)
+    wellness = fetch_wellness_cached(db, days=1)
     tr_score = None
     if wellness:
         tr_score = wellness[0].get("training_readiness")
@@ -532,6 +527,7 @@ def render_overview():
     st.divider()
     render_export_section()
 
+@st.fragment
 def render_data_manager():
     db = get_db()
     st.header("🗂️ Data Manager")
@@ -815,7 +811,7 @@ def render_wellness():
 
     st.divider()
 
-    wellness = db.fetch_wellness(days=30)
+    wellness = fetch_wellness_cached(db, days=30)
     if not wellness:
         st.info("No wellness data yet. Start by logging your data above.")
         return

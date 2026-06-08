@@ -10,6 +10,7 @@ from modules.constants import SUPPLEMENT_MAP
 def get_timestamp(log_date, log_time):
     return f"{log_date} {log_time.strftime('%H:%M:%S')}"
 
+@st.fragment
 def render_plan_builder():
     db = get_db()
     st.header("🛠️ Training Plan Builder")
@@ -144,6 +145,7 @@ def _build_workout_snapshot(plan_name, plan_obj, log_date, log_time, state):
         "_is_last_session": True
     }
 
+@st.fragment
 def render_workout_form():
     db = get_db()
     st.subheader("🏋️ Training Logger")
@@ -527,6 +529,7 @@ def render_workout_form():
             st.session_state.pop("workout_pending_date", None)
             st.rerun()
 
+@st.fragment
 def render_running_form():
     db = get_db()
     st.subheader("🏃 Movement Tracker")
@@ -655,6 +658,7 @@ def render_running_form():
             st.session_state.pop("run_pending_date", None)
             st.rerun()
 
+@st.fragment
 def render_biohack_form():
     db = get_db()
     st.subheader("🍱 Nutrition Log")
@@ -892,6 +896,7 @@ def render_biohack_form():
             st.session_state.pop("nut_draft_loaded", None)
             st.rerun()
 
+@st.fragment
 def render_weight_form():
     db = get_db()
     st.subheader("⚖️ Weight Log")

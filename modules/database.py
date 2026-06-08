@@ -27,6 +27,7 @@ class TrainingDB:
         if not self.is_connected(): return None
         try:
             response = self.supabase.table("training_plans").insert(plan_data).execute()
+            st.cache_data.clear()
             return response.data
         except Exception as e:
             st.error(f"Failed to add plan: {e}")
@@ -36,6 +37,7 @@ class TrainingDB:
         if not self.is_connected(): return None
         try:
             response = self.supabase.table("training_plans").delete().eq("id", plan_id).execute()
+            st.cache_data.clear()
             return response.data
         except Exception as e:
             st.error(f"Failed to delete plan: {e}")
@@ -49,6 +51,7 @@ class TrainingDB:
                 .update(plan_data)\
                 .eq("id", plan_id)\
                 .execute()
+            st.cache_data.clear()
             return True
         except Exception as e:
             st.error(f"Failed to update plan: {e}")
@@ -58,6 +61,7 @@ class TrainingDB:
         if not self.is_connected(): return False
         try:
             self.supabase.table("workouts").insert(workout_data).execute()
+            st.cache_data.clear()
             return True
         except Exception as e:
             st.error(f"Failed to save workout: {e}")
@@ -76,6 +80,7 @@ class TrainingDB:
         if not self.is_connected(): return False
         try:
             self.supabase.table("running").insert(run_data).execute()
+            st.cache_data.clear()
             return True
         except Exception as e:
             st.error(f"Failed to save run: {e}")
@@ -94,6 +99,7 @@ class TrainingDB:
         if not self.is_connected(): return False
         try:
             self.supabase.table("nutrition").insert(nutrition_data).execute()
+            st.cache_data.clear()
             return True
         except Exception as e:
             st.error(f"Failed to save nutrition: {e}")
@@ -112,6 +118,7 @@ class TrainingDB:
         if not self.is_connected(): return False
         try:
             self.supabase.table("weight").insert(weight_data).execute()
+            st.cache_data.clear()
             return True
         except Exception as e:
             st.error(f"Failed to save weight: {e}")
@@ -297,40 +304,48 @@ class TrainingDB:
     def delete_workouts_by_date(self, date: str):
         if not self.is_connected(): return None
         try:
-            return self.supabase.table("workouts").delete()\
+            response = self.supabase.table("workouts").delete()\
                 .gte("log_ts", f"{date}T00:00:00")\
                 .lte("log_ts", f"{date}T23:59:59")\
                 .execute()
+            st.cache_data.clear()
+            return response
         except Exception:
             return None
 
     def delete_runs_by_date(self, date: str):
         if not self.is_connected(): return None
         try:
-            return self.supabase.table("running").delete()\
+            response = self.supabase.table("running").delete()\
                 .gte("log_ts", f"{date}T00:00:00")\
                 .lte("log_ts", f"{date}T23:59:59")\
                 .execute()
+            st.cache_data.clear()
+            return response
         except Exception:
             return None
 
     def delete_nutrition_by_date(self, date: str):
         if not self.is_connected(): return None
         try:
-            return self.supabase.table("nutrition").delete()\
+            response = self.supabase.table("nutrition").delete()\
                 .gte("log_ts", f"{date}T00:00:00")\
                 .lte("log_ts", f"{date}T23:59:59")\
                 .execute()
+            st.cache_data.clear()
+            return response
         except Exception:
             return None
 
     def delete_weight_by_date(self, date: str):
         if not self.is_connected(): return None
         try:
-            return self.supabase.table("weight").delete()\
+            response = self.supabase.table("weight").delete()\
                 .gte("log_ts", f"{date}T00:00:00")\
                 .lte("log_ts", f"{date}T23:59:59")\
                 .execute()
+            st.cache_data.clear()
+            return response
         except Exception:
             return None
 
@@ -339,28 +354,36 @@ class TrainingDB:
     def delete_workout_by_id(self, entry_id: str):
         if not self.is_connected(): return None
         try:
-            return self.supabase.table("workouts").delete().eq("id", entry_id).execute()
+            response = self.supabase.table("workouts").delete().eq("id", entry_id).execute()
+            st.cache_data.clear()
+            return response
         except Exception:
             return None
 
     def delete_run_by_id(self, entry_id: str):
         if not self.is_connected(): return None
         try:
-            return self.supabase.table("running").delete().eq("id", entry_id).execute()
+            response = self.supabase.table("running").delete().eq("id", entry_id).execute()
+            st.cache_data.clear()
+            return response
         except Exception:
             return None
 
     def delete_nutrition_by_id(self, entry_id: str):
         if not self.is_connected(): return None
         try:
-            return self.supabase.table("nutrition").delete().eq("id", entry_id).execute()
+            response = self.supabase.table("nutrition").delete().eq("id", entry_id).execute()
+            st.cache_data.clear()
+            return response
         except Exception:
             return None
 
     def delete_weight_by_id(self, entry_id: str):
         if not self.is_connected(): return None
         try:
-            return self.supabase.table("weight").delete().eq("id", entry_id).execute()
+            response = self.supabase.table("weight").delete().eq("id", entry_id).execute()
+            st.cache_data.clear()
+            return response
         except Exception:
             return None
 
@@ -480,6 +503,7 @@ class TrainingDB:
                     .execute()
             else:
                 self.supabase.table("user_profile").insert(profile_data).execute()
+            st.cache_data.clear()
             return True
         except Exception:
             return False
@@ -489,6 +513,7 @@ class TrainingDB:
         if not self.is_connected(): return False
         try:
             self.supabase.table("wellness").upsert(payload, on_conflict="log_date").execute()
+            st.cache_data.clear()
             return True
         except Exception:
             return False
@@ -508,6 +533,21 @@ def fetch_workouts_cached(_db):
     """Cached wrapper for fetch_workouts(). TTL=60s."""
     return _db.fetch_workouts()
 
+@st.cache_data(ttl=60)
+def fetch_nutrition_cached(_db):
+    """Cached wrapper for fetch_nutrition(). TTL=60s."""
+    return _db.fetch_nutrition()
+
+@st.cache_data(ttl=60)
+def fetch_weight_cached(_db):
+    """Cached wrapper for fetch_weight(). TTL=60s."""
+    return _db.fetch_weight()
+
+@st.cache_data(ttl=60)
+def fetch_wellness_cached(_db, days=30):
+    """Cached wrapper for fetch_wellness(). TTL=60s."""
+    return _db.fetch_wellness(days=days)
+
 @st.cache_data(ttl=300)
 def fetch_plans_cached(_db):
     """Cached wrapper for fetch_plans(). TTL=300s (plans change rarely)."""
@@ -516,4 +556,17 @@ def fetch_plans_cached(_db):
 @st.cache_data(ttl=120)
 def fetch_last_session_cached(_db, plan_name: str) -> dict:
     return _db.fetch_last_session_by_plan(plan_name)
+
+@st.cache_data(ttl=120)
+def fetch_today_summary_cached(_db, target_date_str):
+    """
+    Fetch a consolidated summary for a specific date string (YYYY-MM-DD).
+    Target date must be a string for stable caching.
+    """
+    return {
+        "work": _db.fetch_workouts_by_date(target_date_str),
+        "run": _db.fetch_runs_by_date(target_date_str),
+        "nut": _db.fetch_nutrition_by_date(target_date_str),
+        "weight": _db.fetch_weight_by_date(target_date_str)
+    }
 
