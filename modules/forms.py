@@ -13,7 +13,7 @@ def get_timestamp(log_date, log_time):
 @st.fragment
 def render_plan_builder():
     db = get_db()
-    st.header("🛠️ Training Plan Builder")
+    st.markdown('<div style="font-family:Syne;font-size:26px;font-weight:800;color:#F0EFE8;letter-spacing:-0.04em;margin-bottom:4px;">Training Plan Builder</div>', unsafe_allow_html=True)
     st.info("Define recurring training templates. Plans are stored in Supabase.")
     
     # Detect edit mode
@@ -96,29 +96,35 @@ def render_plan_builder():
                 st.rerun()
 
     # 2. Existing Plans Management
-    st.subheader("📋 Active Plans")
+    st.markdown('<div style="font-family:Syne;font-size:20px;font-weight:700;color:#F0EFE8;margin-bottom:12px;">Active Plans</div>', unsafe_allow_html=True)
     plans = fetch_plans_cached(db)
     if plans:
         for p in plans:
-            with st.container(border=True):
-                c1, c2, c3 = st.columns([4, 1, 1])
-                c1.markdown(f"### {p['name']}")
-                if c2.button("✏️ Edit", key=f"edit_{p['id']}"):
-                    # Load this plan into editor session state
-                    st.session_state["plan_editing_id"]       = p["id"]
-                    st.session_state["plan_editing_name"]     = p["name"]
-                    st.session_state["plan_builder_exercises"] = [
-                        {"name": ex["name"], "type": ex["type"]}
-                        for ex in p["exercises"]
-                    ]
-                    st.session_state.pop("plan_builder_name", None)
+            ex_list = ", ".join([f"{ex['name']} ({ex['type']})" for ex in p['exercises']])
+            st.markdown(f"""
+            <div style="background:#141417;border:0.5px solid rgba(255,255,255,0.07);
+            border-radius:10px;padding:14px 16px;margin-bottom:6px;">
+              <div style="font-family:Syne;font-size:15px;font-weight:700;
+              color:#F0EFE8;">{p['name']}</div>
+              <div style="font-size:11px;color:#888880;margin-top:4px;
+              font-family:DM Sans;">{ex_list}</div>
+            </div>""", unsafe_allow_html=True)
+            
+            c2, c3 = st.columns([1, 1])
+            if c2.button("✏️ Edit", key=f"edit_{p['id']}"):
+                # Load this plan into editor session state
+                st.session_state["plan_editing_id"]       = p["id"]
+                st.session_state["plan_editing_name"]     = p["name"]
+                st.session_state["plan_builder_exercises"] = [
+                    {"name": ex["name"], "type": ex["type"]}
+                    for ex in p["exercises"]
+                ]
+                st.session_state.pop("plan_builder_name", None)
+                st.rerun()
+            if c3.button("🗑️ Delete", key=f"del_{p['id']}"):
+                if db.delete_plan(p['id']):
+                    st.cache_data.clear()
                     st.rerun()
-                if c3.button("🗑️ Delete", key=f"del_{p['id']}"):
-                    if db.delete_plan(p['id']):
-                        st.cache_data.clear()
-                        st.rerun()
-                ex_list = ", ".join([f"{ex['name']} ({ex['type']})" for ex in p['exercises']])
-                st.caption(ex_list)
     else:
         st.info("No plans found. Build your first one above!")
 
@@ -148,7 +154,7 @@ def _build_workout_snapshot(plan_name, plan_obj, log_date, log_time, state):
 @st.fragment
 def render_workout_form():
     db = get_db()
-    st.subheader("🏋️ Training Logger")
+    st.markdown('<div style="font-family:Syne;font-size:20px;font-weight:800;color:#F0EFE8;letter-spacing:-0.04em;margin-bottom:16px;">Training Logger</div>', unsafe_allow_html=True)
 
     plans = fetch_plans_cached(db)
     if not plans:
@@ -305,7 +311,23 @@ def render_workout_form():
         ex_n = ex['name']
         ex_t = ex['type']
 
-        st.markdown(f"#### {ex_n} ({ex_t})")
+        type_badge_style = ""
+        if ex_t == "Heavy":
+            type_badge_style = "background:rgba(241,53,104,0.1);color:#F13568;border:0.5px solid rgba(241,53,104,0.2)"
+        elif ex_t == "Bodyweight":
+            type_badge_style = "background:rgba(53,200,241,0.1);color:#35C8F1;border:0.5px solid rgba(53,200,241,0.2)"
+        elif ex_t == "Timed":
+            type_badge_style = "background:rgba(239,159,39,0.1);color:#EF9F27;border:0.5px solid rgba(239,159,39,0.2)"
+
+        st.markdown(f"""
+        <div style="display:flex;align-items:center;justify-content:space-between;
+        padding:12px 0 6px;border-top:0.5px solid rgba(255,255,255,0.07);">
+          <span style="font-family:Syne;font-size:15px;font-weight:700;
+          color:#F0EFE8;letter-spacing:-0.02em;">{ex_n}</span>
+          <span style="font-size:10px;padding:3px 8px;border-radius:4px;
+          font-weight:600;letter-spacing:0.06em;text-transform:uppercase;
+          {type_badge_style}">{ex_t}</span>
+        </div>""", unsafe_allow_html=True)
         
         # Last Session Summary Caption
         if ex_n in last_session:
@@ -316,9 +338,9 @@ def render_workout_form():
                 if ex_t == "Timed": h_details.append(f"{h['duration_sec']}s")
                 elif ex_t == "Bodyweight": h_details.append(f"{h['reps']}r")
                 else: h_details.append(f"{h['weight']}kg × {h['reps']}")
-            st.caption(f"📅 Last {h_date}: {len(h_sets)} sets • {' | '.join(h_details)}")
+            st.markdown(f'<div style="font-size:11px;color:#444440;margin-bottom:8px;padding-left:4px;font-family:DM Sans;">Last {h_date}: {" | ".join(h_details)}</div>', unsafe_allow_html=True)
         else:
-            st.caption("No history for this exercise in this plan.")
+            st.markdown(f'<div style="font-size:11px;color:#444440;margin-bottom:8px;padding-left:4px;font-family:DM Sans;">No history for this exercise.</div>', unsafe_allow_html=True)
 
         # --- Volume Delta Calculation ---
         # Current session volume
@@ -353,12 +375,13 @@ def render_workout_form():
         if last_vol > 0:
             delta_pct = ((curr_vol - last_vol) / last_vol) * 100
             arrow = "▲" if delta_pct >= 0 else "▼"
-            color = "green" if delta_pct >= 0 else "orange"
-            st.markdown(
-                f"📊 Volume: **{curr_vol:.0f} kg** "
-                f"<span style='color:{color}'>{arrow} {abs(delta_pct):.1f}%</span> vs last session",
-                unsafe_allow_html=True
-            )
+            color = "#C8F135" if delta_pct >= 0 else "#F13568"
+            st.markdown(f"""
+            <div style="font-size:11px;color:#888880;margin:4px 0 10px;
+            font-family:DM Sans;">Volume <strong style="color:#F0EFE8;
+            font-family:Syne;">{curr_vol:.0f} kg</strong>
+            <span style="color:{color};">{arrow} {abs(delta_pct):.1f}%</span>
+            vs last session</div>""", unsafe_allow_html=True)
 
         # Per-Set UI
         nsets = st.session_state[f"work_nsets_{i}"]
@@ -380,7 +403,7 @@ def render_workout_form():
                     last_w = st.session_state.get(f"work_last_w_{i}_{s}", 0.0)
                     last_r = st.session_state.get(f"work_last_r_{i}_{s}", 0)
                     if (w > last_w or r > last_r) and (last_w > 0 or last_r > 0):
-                        cols[3].markdown("🏆", help="Personal Record!")
+                        cols[3].markdown('<span style="font-size:10px;background:rgba(200,241,53,0.12);color:#C8F135;padding:2px 6px;border-radius:4px;font-weight:700;font-family:DM Sans;">PR</span>', unsafe_allow_html=True)
                     
                     cols[4].checkbox("✅", label_visibility="collapsed", key=f"work_done_{i}_{s}")
                     if nsets > 1:
@@ -401,7 +424,7 @@ def render_workout_form():
                     # PR Check
                     last_d = st.session_state.get(f"work_last_d_{i}_{s}", 0)
                     if d > last_d and last_d > 0:
-                        cols[2].markdown("🏆", help="Personal Record!")
+                        cols[2].markdown('<span style="font-size:10px;background:rgba(200,241,53,0.12);color:#C8F135;padding:2px 6px;border-radius:4px;font-weight:700;font-family:DM Sans;">PR</span>', unsafe_allow_html=True)
 
                     cols[3].checkbox("✅", label_visibility="collapsed", key=f"work_done_{i}_{s}")
                     if nsets > 1:
@@ -419,7 +442,7 @@ def render_workout_form():
                     # PR Check
                     last_r = st.session_state.get(f"work_last_r_{i}_{s}", 0)
                     if r > last_r and last_r > 0:
-                        cols[2].markdown("🏆", help="Personal Record!")
+                        cols[2].markdown('<span style="font-size:10px;background:rgba(200,241,53,0.12);color:#C8F135;padding:2px 6px;border-radius:4px;font-weight:700;font-family:DM Sans;">PR</span>', unsafe_allow_html=True)
 
                     cols[3].checkbox("✅", label_visibility="collapsed", key=f"work_done_{i}_{s}")
                     if nsets > 1:
@@ -433,7 +456,7 @@ def render_workout_form():
             # Apply visual highlight if done
             if is_done:
                 st.markdown(
-                    f"""<style>div[data-testid="stVerticalBlock"] > div:nth-child({(s*2)+3}) {{ border-left: 5px solid green; padding-left: 10px; }}</style>""", 
+                    f"""<style>div[data-testid="stVerticalBlock"] > div:nth-child({(s*2)+3}) {{ border-left: 5px solid #C8F135; padding-left: 10px; }}</style>""", 
                     unsafe_allow_html=True
                 )
 
@@ -444,10 +467,19 @@ def render_workout_form():
         rpe_key = f"work_rpe_{i}"
         if rpe_key not in st.session_state:
             st.session_state[rpe_key] = 7.0
-        rpe = st.slider("Intensity (RPE)", 1.0, 10.0, step=0.5, key=rpe_key, on_change=save_workout_draft)
+        
+        st.markdown('<div style="font-size:11px;color:#888880;margin-top:8px;font-family:DM Sans;letter-spacing:0.04em;text-transform:uppercase;">Intensity (RPE)</div>', unsafe_allow_html=True)
+        rpe = st.slider("Intensity (RPE)", 1.0, 10.0, step=0.5, key=rpe_key, on_change=save_workout_draft, label_visibility="collapsed")
         st.divider()
 
-    submitted = st.button("💾 Save Training Session")
+    st.markdown("""<style>
+    div:has(> button[key="save_workout_btn"]) > button {
+      background: #C8F135 !important; color: #0D0D0F !important;
+      font-family: Syne !important; font-weight: 800 !important;
+      border: none !important; width: 100%;
+    }
+    </style>""", unsafe_allow_html=True)
+    submitted = st.button("💾 Save Training Session", key="save_workout_btn")
 
     # Step 1: on submit, check duplicate and set show_confirm flag
     if submitted:
@@ -513,17 +545,25 @@ def render_workout_form():
     # Step 2: show confirmation UI OUTSIDE if submitted — persists across reruns
     if st.session_state.get("workout_show_confirm"):
         date_str = st.session_state.get("workout_pending_date", "")
-        st.warning(f"⚠️ Duplicate entries found on {date_str}.")
+        st.markdown(f"""
+        <div style="background:rgba(241,53,104,0.08);border:0.5px solid rgba(241,53,104,0.2);
+        border-radius:8px;padding:10px 14px;margin:8px 0;font-size:13px;color:#F13568;font-family:DM Sans;">
+        ⚠️ Duplicate entries found on {date_str}.</div>""", unsafe_allow_html=True)
+        
         col1, col2, col3 = st.columns(3)
         if col1.button("💾 Save Anyway", key="workout_save_anyway"):
             st.session_state.workout_confirm_overwrite = True
             st.session_state.pop("workout_show_confirm", None)
             st.rerun()
-        if col2.button("🔄 Overwrite (delete old first)", key="workout_overwrite"):
+        
+        st.markdown("""<style>div:has(> button[key="workout_overwrite"]) > button { background:#C8F135 !important; color:#0D0D0F !important; }</style>""", unsafe_allow_html=True)
+        if col2.button("🔄 Overwrite", key="workout_overwrite"):
             st.session_state.workout_confirm_overwrite = True
             st.session_state.workout_do_overwrite = True
             st.session_state.pop("workout_show_confirm", None)
             st.rerun()
+            
+        st.markdown("""<style>div:has(> button[key="workout_cancel"]) > button { color:#F13568 !important; border-color:rgba(241,53,104,0.3) !important; }</style>""", unsafe_allow_html=True)
         if col3.button("❌ Cancel", key="workout_cancel"):
             st.session_state.pop("workout_show_confirm", None)
             st.session_state.pop("workout_pending_date", None)
@@ -532,7 +572,7 @@ def render_workout_form():
 @st.fragment
 def render_running_form():
     db = get_db()
-    st.subheader("🏃 Movement Tracker")
+    st.markdown('<div style="font-family:Syne;font-size:20px;font-weight:800;color:#F0EFE8;letter-spacing:-0.04em;margin-bottom:16px;">Movement Tracker</div>', unsafe_allow_html=True)
     form_key = f"draft_run_{st.session_state.get('user_id', 'default')}"
 
     if "run_draft_loaded" not in st.session_state:
@@ -642,17 +682,25 @@ def render_running_form():
     # Step 2: show confirmation UI OUTSIDE if submitted
     if st.session_state.get("run_show_confirm"):
         date_str = st.session_state.get("run_pending_date", "")
-        st.warning(f"⚠️ Duplicate entries found on {date_str}.")
+        st.markdown(f"""
+        <div style="background:rgba(241,53,104,0.08);border:0.5px solid rgba(241,53,104,0.2);
+        border-radius:8px;padding:10px 14px;margin:8px 0;font-size:13px;color:#F13568;font-family:DM Sans;">
+        ⚠️ Duplicate entries found on {date_str}.</div>""", unsafe_allow_html=True)
+        
         col1, col2, col3 = st.columns(3)
         if col1.button("💾 Save Anyway", key="run_save_anyway"):
             st.session_state.run_confirm_overwrite = True
             st.session_state.pop("run_show_confirm", None)
             st.rerun()
-        if col2.button("🔄 Overwrite (delete old first)", key="run_overwrite"):
+            
+        st.markdown("""<style>div:has(> button[key="run_overwrite"]) > button { background:#C8F135 !important; color:#0D0D0F !important; }</style>""", unsafe_allow_html=True)
+        if col2.button("🔄 Overwrite", key="run_overwrite"):
             st.session_state.run_confirm_overwrite = True
             st.session_state.run_do_overwrite = True
             st.session_state.pop("run_show_confirm", None)
             st.rerun()
+            
+        st.markdown("""<style>div:has(> button[key="run_cancel"]) > button { color:#F13568 !important; border-color:rgba(241,53,104,0.3) !important; }</style>""", unsafe_allow_html=True)
         if col3.button("❌ Cancel", key="run_cancel"):
             st.session_state.pop("run_show_confirm", None)
             st.session_state.pop("run_pending_date", None)
@@ -661,7 +709,7 @@ def render_running_form():
 @st.fragment
 def render_biohack_form():
     db = get_db()
-    st.subheader("🍱 Nutrition Log")
+    st.markdown('<div style="font-family:Syne;font-size:20px;font-weight:800;color:#F0EFE8;letter-spacing:-0.04em;margin-bottom:16px;">Nutrition Log</div>', unsafe_allow_html=True)
     form_key = f"draft_nutrition_{st.session_state.get('user_id', 'default')}"
 
     # Determine if today already has a saved nutrition entry
@@ -672,7 +720,7 @@ def render_biohack_form():
 
     # ── JSON Quick Fill ──────────────────────────────────
     with st.expander("⚡ Quick Fill", expanded=False):
-        st.caption("Paste JSON from your Gemini Gem to auto-fill the form below.")
+        st.markdown('<div style="font-size:11px;color:#35C8F1;margin-bottom:8px;">Paste JSON from Gemini Gem to auto-fill</div>', unsafe_allow_html=True)
         
         json_input = st.text_area(
             "Paste JSON here",
@@ -827,7 +875,7 @@ def render_biohack_form():
         on_change=save_nut_draft
     )
 
-    st.markdown("### 💊 Supplements")
+    st.markdown('<div style="font-family:Syne;font-size:18px;font-weight:700;color:#F0EFE8;margin-bottom:12px;">Supplements</div>', unsafe_allow_html=True)
 
     # Load profile supplements
     profile = fetch_profile_cached(db) or {}
@@ -842,6 +890,7 @@ def render_biohack_form():
         if sups_locked:
             st.caption("💡 Supplements already logged today — adjust if needed.")
 
+        st.markdown('<div style="display:grid;grid-template-columns:repeat(4,1fr);gap:6px;margin-bottom:12px;">', unsafe_allow_html=True)
         cols_per_row = 4
         for row_start in range(0, len(sup_keys), cols_per_row):
             row_keys = sup_keys[row_start:row_start + cols_per_row]
@@ -855,9 +904,10 @@ def render_biohack_form():
                     key=sess_key,
                     on_change=save_nut_draft
                 )
+        st.markdown('</div>', unsafe_allow_html=True)
 
     st.divider()
-    st.markdown("### Energy & Macros")
+    st.markdown('<div style="font-family:DM Sans;font-size:10px;color:#444440;letter-spacing:0.2em;text-transform:uppercase;margin:12px 0 8px;">Energy & Macros</div>', unsafe_allow_html=True)
     n1, n2, n3, n4 = st.columns(4)
     cal = n1.number_input("Calories", min_value=0, step=50, key="nut_cal", on_change=save_nut_draft)
     p_g = n2.number_input("Protein (g)", min_value=0, step=1, key="nut_pg", on_change=save_nut_draft)
@@ -865,13 +915,14 @@ def render_biohack_form():
     f_g = n4.number_input("Fat (g)", min_value=0, step=1, key="nut_fg", on_change=save_nut_draft)
 
     st.divider()
-    st.markdown("### ⭐ Meal Score")
+    st.markdown('<div style="font-size:11px;color:#888880;margin-top:8px;font-family:DM Sans;letter-spacing:0.04em;text-transform:uppercase;">Meal Score</div>', unsafe_allow_html=True)
     meal_score = st.slider(
         "Rate today's nutrition (1 = terrible, 10 = perfect)",
         min_value=1, max_value=10,
         step=1,
         key="nut_meal_score",
-        on_change=save_nut_draft
+        on_change=save_nut_draft,
+        label_visibility="collapsed"
     )
 
     submitted = st.button("✅ Save Nutrition")
@@ -899,7 +950,7 @@ def render_biohack_form():
 @st.fragment
 def render_weight_form():
     db = get_db()
-    st.subheader("⚖️ Weight Log")
+    st.markdown('<div style="font-family:Syne;font-size:20px;font-weight:800;color:#F0EFE8;letter-spacing:-0.04em;margin-bottom:16px;">Weight Log</div>', unsafe_allow_html=True)
     form_key = f"draft_weight_{st.session_state.get('user_id', 'default')}"
 
     if "weight_draft_loaded" not in st.session_state:
@@ -978,17 +1029,25 @@ def render_weight_form():
     # Step 2: show confirmation UI OUTSIDE if submitted
     if st.session_state.get("weight_show_confirm"):
         date_str = st.session_state.get("weight_pending_date", "")
-        st.warning(f"⚠️ Duplicate entries found on {date_str}.")
+        st.markdown(f"""
+        <div style="background:rgba(241,53,104,0.08);border:0.5px solid rgba(241,53,104,0.2);
+        border-radius:8px;padding:10px 14px;margin:8px 0;font-size:13px;color:#F13568;font-family:DM Sans;">
+        ⚠️ Duplicate entries found on {date_str}.</div>""", unsafe_allow_html=True)
+        
         col1, col2, col3 = st.columns(3)
         if col1.button("💾 Save Anyway", key="weight_save_anyway"):
             st.session_state.weight_confirm_overwrite = True
             st.session_state.pop("weight_show_confirm", None)
             st.rerun()
-        if col2.button("🔄 Overwrite (delete old first)", key="weight_overwrite"):
+            
+        st.markdown("""<style>div:has(> button[key="weight_overwrite"]) > button { background:#C8F135 !important; color:#0D0D0F !important; }</style>""", unsafe_allow_html=True)
+        if col2.button("🔄 Overwrite", key="weight_overwrite"):
             st.session_state.weight_confirm_overwrite = True
             st.session_state.weight_do_overwrite = True
             st.session_state.pop("weight_show_confirm", None)
             st.rerun()
+            
+        st.markdown("""<style>div:has(> button[key="weight_cancel"]) > button { color:#F13568 !important; border-color:rgba(241,53,104,0.3) !important; }</style>""", unsafe_allow_html=True)
         if col3.button("❌ Cancel", key="weight_cancel"):
             st.session_state.pop("weight_show_confirm", None)
             st.session_state.pop("weight_pending_date", None)
@@ -1140,13 +1199,13 @@ def process_pending_weight(db, session_state):
 
 def render_profile_form():
     db = get_db()
-    st.header("👤 User Profile & Goals")
+    st.markdown('<div style="font-family:Syne;font-size:26px;font-weight:800;color:#F0EFE8;letter-spacing:-0.04em;margin-bottom:4px;">User Profile & Goals</div>', unsafe_allow_html=True)
     st.caption("Your physical stats and nutrition goals. Used across all tabs.")
 
     profile = fetch_profile_cached(db) or {}
 
     with st.form("profile_form"):
-        st.markdown("### 📏 Physical Stats")
+        st.markdown('<div style="font-family:DM Sans;font-size:10px;color:#444440;letter-spacing:0.2em;text-transform:uppercase;margin:16px 0 10px;">Physical Stats</div>', unsafe_allow_html=True)
         c1, c2, c3 = st.columns(3)
         weight_kg = c1.number_input(
             "Current Weight (kg)", min_value=0.0, step=0.1,
@@ -1166,19 +1225,29 @@ def render_profile_form():
             bmi = weight_kg / ((height_cm / 100) ** 2)
             lean_mass = weight_kg * (1 - body_fat / 100) if body_fat > 0 else None
             mc1, mc2 = st.columns(2)
-            mc1.metric("BMI", f"{bmi:.1f}")
+            
+            mc1.markdown(f"""
+            <div style="background:#141417;border:0.5px solid rgba(255,255,255,0.07);border-radius:10px;padding:14px;">
+              <div style="font-family:DM Sans;font-size:10px;color:#888880;text-transform:uppercase;letter-spacing:0.04em;margin-bottom:4px;">BMI</div>
+              <div style="font-family:Syne;font-size:22px;font-weight:700;color:#F0EFE8;">{bmi:.1f}</div>
+            </div>""", unsafe_allow_html=True)
+            
             if lean_mass:
-                mc2.metric("Lean Mass (kg)", f"{lean_mass:.1f}")
+                mc2.markdown(f"""
+                <div style="background:#141417;border:0.5px solid rgba(255,255,255,0.07);border-radius:10px;padding:14px;">
+                  <div style="font-family:DM Sans;font-size:10px;color:#888880;text-transform:uppercase;letter-spacing:0.04em;margin-bottom:4px;">Lean Mass</div>
+                  <div style="font-family:Syne;font-size:22px;font-weight:700;color:#F0EFE8;">{lean_mass:.1f} kg</div>
+                </div>""", unsafe_allow_html=True)
 
         st.divider()
-        st.markdown("### 🎯 Goals")
+        st.markdown('<div style="font-family:DM Sans;font-size:10px;color:#444440;letter-spacing:0.2em;text-transform:uppercase;margin:16px 0 10px;">Goals</div>', unsafe_allow_html=True)
         g1, g2 = st.columns(2)
         goal_weight = g1.number_input(
             "Target Weight (kg)", min_value=0.0, step=0.1,
             value=float(profile.get("goal_weight_kg") or 0.0)
         )
 
-        st.markdown("#### Daily Nutrition Goals")
+        st.markdown('<div style="font-family:DM Sans;font-size:10px;color:#444440;letter-spacing:0.2em;text-transform:uppercase;margin:12px 0 8px;">Daily Nutrition Goals</div>', unsafe_allow_html=True)
         n1, n2, n3, n4 = st.columns(4)
         goal_cal = n1.number_input(
             "Calories (kcal)", min_value=0, step=50,
@@ -1198,7 +1267,7 @@ def render_profile_form():
         )
 
         st.divider()
-        st.markdown("### 💊 Default Supplements")
+        st.markdown('<div style="font-family:DM Sans;font-size:10px;color:#444440;letter-spacing:0.2em;text-transform:uppercase;margin:16px 0 10px;">Default Supplements</div>', unsafe_allow_html=True)
         st.caption("These will be pre-checked in the Nutrition form every day.")
 
         sup_display_names = [display for json_key, (display, sess_key, db_col) in SUPPLEMENT_MAP.items()]
@@ -1249,55 +1318,80 @@ def render_today_training_summary():
     _bkk = pytz.timezone("Asia/Bangkok")
     today_str = str(datetime.now(_bkk).date())
     rows = db.fetch_workouts_by_date(today_str)
-    with st.container(border=True):
-        st.markdown("### 🏋️ Today Training")
+    
+    st.markdown("""
+    <div style="background:#141417;border:0.5px solid rgba(255,255,255,0.07);border-radius:12px;padding:16px 20px;margin-bottom:12px;">
+    """, unsafe_allow_html=True)
+    
+    st.markdown('<div style="font-family:Syne;font-size:12px;font-weight:700;color:#444440;letter-spacing:0.12em;text-transform:uppercase;margin-bottom:12px;">Today Training</div>', unsafe_allow_html=True)
 
-        if not rows:
-            st.info("🏋️ no training logged today.")
-            return
+    if not rows:
+        st.info("🏋️ no training logged today.")
+        st.markdown("</div>", unsafe_allow_html=True)
+        return
 
-        df = pd.DataFrame(rows)
-        df['rpe']          = pd.to_numeric(df['rpe'],          errors='coerce')
-        df['volume']       = pd.to_numeric(df['volume'],       errors='coerce')
+    df = pd.DataFrame(rows)
+    df['rpe']          = pd.to_numeric(df['rpe'],          errors='coerce')
+    df['volume']       = pd.to_numeric(df['volume'],       errors='coerce')
 
-        # ── Top Metrics ──────────────────────────────────────
-        total_volume = df['volume'].sum()
-        avg_rpe      = df['rpe'].mean()
+    # ── Top Metrics ──────────────────────────────────────
+    total_volume = df['volume'].sum()
+    avg_rpe      = df['rpe'].mean()
 
-        c1, c2 = st.columns(2)
-        c1.metric("🏋️ Total Volume", f"{total_volume:,.0f} kg")
-        c2.metric("🔥 Avg RPE",      f"{avg_rpe:.1f} / 10")
+    st.markdown(f"""
+    <div style="margin-bottom:12px;">
+      <div style="font-size:10px;color:#888880;font-family:DM Sans;
+      text-transform:uppercase;letter-spacing:0.1em;margin-bottom:4px;">
+      Total Volume</div>
+      <div style="font-family:Syne;font-size:32px;font-weight:800;
+      color:#C8F135;letter-spacing:-0.04em;line-height:1;">
+      {total_volume:,.0f}
+      <span style="font-size:14px;color:#888880;font-weight:300;">kg</span>
+      </div>
+    </div>""", unsafe_allow_html=True)
+    
+    st.markdown(f'<div style="font-family:DM Sans;font-size:13px;color:#888880;margin-bottom:12px;">Avg RPE: <span style="color:#F0EFE8;font-weight:500;">{avg_rpe:.1f}</span></div>', unsafe_allow_html=True)
 
-        st.divider()
+    st.divider()
 
-        # ── Exercise Breakdown Table ──────────────────────────
-        # นับ Sets โดยนับ rows ที่มีชื่อ exercise ซ้ำกัน
-        # เพราะแต่ละ set = 1 row ใน DB ไม่ขึ้นกับ set_number column
-        with st.expander(" 🗂️ Exercise Breakdown"):
-            sets_col = df.groupby("exercise")["exercise"].count().rename("Sets")
+    # ── Exercise Breakdown Table ──────────────────────────
+    st.markdown("""<style>
+    [data-testid="stDataFrame"] th {
+      background: #1A1A1F !important; color: #888880 !important;
+      font-family: 'DM Sans' !important; font-size: 11px !important;
+      text-transform: uppercase; letter-spacing: 0.06em;
+    }
+    [data-testid="stDataFrame"] td {
+      color: #F0EFE8 !important; font-family: 'DM Sans' !important;
+    }
+    </style>""", unsafe_allow_html=True)
+    
+    with st.expander(" 🗂️ Exercise Breakdown"):
+        sets_col = df.groupby("exercise")["exercise"].count().rename("Sets")
 
-            summary = df.groupby("exercise").agg(
-                Volume=("volume", "sum"),
-                RPE=("rpe", "mean"),
-            ).join(sets_col).reset_index()
+        summary = df.groupby("exercise").agg(
+            Volume=("volume", "sum"),
+            RPE=("rpe", "mean"),
+        ).join(sets_col).reset_index()
 
-            summary = summary[["exercise", "Sets", "Volume", "RPE"]]
-            summary["Volume"] = summary["Volume"].map(lambda x: f"{x:,.1f} kg")
-            summary["RPE"]    = summary["RPE"].map(lambda x: f"{x:.1f}")
-            st.dataframe(summary, hide_index=True, use_container_width=True)
+        summary = summary[["exercise", "Sets", "Volume", "RPE"]]
+        summary["Volume"] = summary["Volume"].map(lambda x: f"{x:,.1f} kg")
+        summary["RPE"]    = summary["RPE"].map(lambda x: f"{x:.1f}")
+        st.dataframe(summary, hide_index=True, use_container_width=True)
 
-        # ── Per-Set Detail Expanders ──────────────────────────
-        with st.expander(" 🔍 Per-Set Detail"):
-            for exercise, group in df.groupby("exercise"):
-                with st.expander(f"📌 {exercise}", expanded=False):
-                    detail_cols = [c for c in
-                        ['weight', 'reps', 'duration_sec', 'rpe', 'volume']
-                        if c in group.columns]
-                    st.dataframe(
-                        group[detail_cols].reset_index(drop=True),
-                        hide_index=False,
-                        use_container_width=True
-                    )
+    # ── Per-Set Detail Expanders ──────────────────────────
+    with st.expander(" 🔍 Per-Set Detail"):
+        for exercise, group in df.groupby("exercise"):
+            with st.expander(f"📌 {exercise}", expanded=False):
+                detail_cols = [c for c in
+                    ['weight', 'reps', 'duration_sec', 'rpe', 'volume']
+                    if c in group.columns]
+                st.dataframe(
+                    group[detail_cols].reset_index(drop=True),
+                    hide_index=False,
+                    use_container_width=True
+                )
+    st.markdown("</div>", unsafe_allow_html=True)
 
 def render_exercise_history_card():
     import pandas as pd
@@ -1305,17 +1399,10 @@ def render_exercise_history_card():
     
     db = get_db()
     
-    st.header("📊 Open Exercise History")
+    st.markdown('<div style="font-family:Syne;font-size:26px;font-weight:800;color:#F0EFE8;letter-spacing:-0.04em;margin-bottom:4px;">Exercise History</div>', unsafe_allow_html=True)
     
     # 1. Fetch active workout templates/plans from database
-    if hasattr(db, 'fetch_plans'):
-        active_plans = db.fetch_plans()
-    elif hasattr(db, 'get_plans'):
-        active_plans = db.get_plans()
-    elif hasattr(db, 'get_workout_plans'):
-        active_plans = db.get_workout_plans()
-    else:
-        active_plans = db.fetch_workouts() 
+    active_plans = db.fetch_plans()
         
     # 2. Fetch historical workout logs
     all_workouts = db.fetch_workouts()
@@ -1341,7 +1428,6 @@ def render_exercise_history_card():
 
     # If active_plans failed to fetch or is just a raw logs dump, group dynamically
     if not active_plans or not isinstance(active_plans, list):
-        st.warning("Could not map active template structures. Displaying global exercise groups instead.")
         unique_exercises = sorted(df_all['exercise'].unique().tolist())
         active_plans = [{"name": "Global Active Routines", "exercises": [{"name": ex, "type": "Heavy"} for ex in unique_exercises]}]
 
@@ -1356,7 +1442,7 @@ def render_exercise_history_card():
         st.error("Selected plan not found.")
         return
 
-    st.markdown(f"### 🏋️ {selected_plan_name} (Most Recent History)")
+    st.markdown(f'<div style="font-family:Syne;font-size:20px;font-weight:700;color:#F0EFE8;margin-bottom:12px;">🏋️ {selected_plan_name}</div>', unsafe_allow_html=True)
     
     plan_exercises = selected_plan.get('exercises', [])
     if not plan_exercises:
@@ -1383,36 +1469,55 @@ def render_exercise_history_card():
             continue
             
         has_history_output = True
-        st.markdown(f"**{ex_name}** *(Type: {ex_type})*")
         
         # Sort chronologically descending to target newest workouts first
         df_ex = df_ex.sort_values(by=['date', 'log_ts'], ascending=[False, True])
         
-        # Strict Date Throttling: Isolate only the single most recent distinct session date
+        # Isolate only the single most recent distinct session date
         recent_dates = df_ex['date'].unique()[:1]
         
         for target_date in recent_dates:
             date_str = target_date.strftime('%d %b %Y')
-            st.markdown(f"📅 {date_str} *(Latest Session)*")
-            
             df_session = df_ex[df_ex['date'] == target_date]
             
+            sets_html = ""
             for idx, row in enumerate(df_session.itertuples(), start=1):
+                detail = ""
                 if str(ex_type).lower() == 'timed':
                     sec_val = int(getattr(row, 'duration_sec', 0))
-                    st.markdown(f"*   ยก {idx}: {sec_val}วิ")
+                    detail = f"{sec_val}s"
                 elif str(ex_type).lower() == 'bodyweight':
                     rep_val = int(getattr(row, 'reps', 0))
                     weight_val = float(getattr(row, 'weight', 0))
                     if weight_val > 0:
-                        st.markdown(f"*   round {idx}: +{weight_val:.1f} kg x {rep_val} rep")
+                        detail = f"+{weight_val:.1f} kg x {rep_val}"
                     else:
-                        st.markdown(f"*   round {idx}: {rep_val} rep")
+                        detail = f"{rep_val} reps"
                 else: # Default/Heavy Weight Training
                     weight_val = float(getattr(row, 'weight', 0))
                     rep_val = int(getattr(row, 'reps', 0))
-                    st.markdown(f"*   round {idx}: {weight_val:.1f} kg x {rep_val} rep")
-        st.write("") # Micro-spacing between exercises
+                    detail = f"{weight_val:.1f} kg x {rep_val}"
+                
+                sets_html += f'<div style="font-size:12px;color:#F0EFE8;padding:3px 0;">Set {idx}: {detail}</div>'
+
+            type_badge_style = ""
+            if ex_type == "Heavy":
+                type_badge_style = "background:rgba(241,53,104,0.1);color:#F13568;border:0.5px solid rgba(241,53,104,0.2)"
+            elif ex_type == "Bodyweight":
+                type_badge_style = "background:rgba(53,200,241,0.1);color:#35C8F1;border:0.5px solid rgba(53,200,241,0.2)"
+            elif ex_type == "Timed":
+                type_badge_style = "background:rgba(239,159,39,0.1);color:#EF9F27;border:0.5px solid rgba(239,159,39,0.2)"
+
+            st.markdown(f"""
+            <div style="background:#141417;border:0.5px solid rgba(255,255,255,0.07);
+            border-radius:10px;padding:12px 14px;margin-bottom:6px;">
+              <div style="display:flex;align-items:center;justify-content:space-between;margin-bottom:8px;">
+                <span style="font-family:Syne;font-size:14px;font-weight:700;color:#F0EFE8;">{ex_name}</span>
+                <span style="font-size:10px;padding:3px 8px;border-radius:4px;{type_badge_style}">{ex_type}</span>
+              </div>
+              <div style="font-size:11px;color:#888880;margin-bottom:6px;">Latest: {date_str}</div>
+              {sets_html}
+            </div>""", unsafe_allow_html=True)
         
     if has_history_output:
         st.divider()

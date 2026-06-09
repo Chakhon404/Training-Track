@@ -16,6 +16,30 @@ from modules.forms import render_today_training_summary
 
 # --- UTILITIES ---
 
+def apply_dark_theme(fig, primary_color='#C8F135'):
+    fig.update_layout(
+        paper_bgcolor='rgba(0,0,0,0)',
+        plot_bgcolor='#141417',
+        font=dict(family='DM Sans', color='#888880', size=11),
+        xaxis=dict(
+            gridcolor='rgba(255,255,255,0.05)',
+            linecolor='rgba(255,255,255,0.07)',
+            tickfont=dict(color='#888880'),
+        ),
+        yaxis=dict(
+            gridcolor='rgba(255,255,255,0.05)',
+            linecolor='rgba(255,255,255,0.07)',
+            tickfont=dict(color='#888880'),
+        ),
+        margin=dict(l=0, r=0, t=28, b=0),
+        legend=dict(
+            bgcolor='rgba(0,0,0,0)',
+            font=dict(color='#888880'),
+        ),
+    )
+    fig.update_traces(marker_color=primary_color)
+    return fig
+
 def safe_numeric(df, columns):
     """Sanitizes dataframe columns: coerces to numeric, fills NaN with 0."""
     for col in columns:
@@ -23,7 +47,7 @@ def safe_numeric(df, columns):
             df[col] = pd.to_numeric(df[col], errors='coerce').fillna(0)
     return df
 
-def render_chart_safely(df, x, y, title=None, chart_type='line'):
+def render_chart_safely(df, x, y, title=None, chart_type='line', primary_color='#C8F135', key=None):
     """Renders a chart only if valid data exists, switches type based on count."""
     if df.empty or x not in df.columns or y not in df.columns:
         st.info(f"Insufficient data to render {title or y} chart.")
@@ -38,16 +62,17 @@ def render_chart_safely(df, x, y, title=None, chart_type='line'):
         st.info(f"No valid data points for {title or y}.")
         return
 
-    if title: st.markdown(f"#### {title}")
+    if title:
+        st.markdown(f'<div style="font-family:Syne;font-size:18px;font-weight:700;color:#F0EFE8;margin-bottom:8px;">{title}</div>', unsafe_allow_html=True)
     
     # Logic: 1 point = scatter, >1 point = requested type
-    if len(plot_df) == 1:
-        st.scatter_chart(plot_df.set_index(x)[y])
+    if chart_type == 'line':
+        fig = px.line(plot_df, x=x, y=y)
     else:
-        if chart_type == 'line':
-            st.line_chart(plot_df.set_index(x)[y])
-        else:
-            st.bar_chart(plot_df.set_index(x)[y])
+        fig = px.bar(plot_df, x=x, y=y)
+    
+    apply_dark_theme(fig, primary_color)
+    st.plotly_chart(fig, use_container_width=True, key=key or f"chart_{x}_{y}")
 
 # --- CORE LOGIC ---
 
@@ -97,7 +122,7 @@ def predict_target_date(df_weights, target=64.0):
 # --- UI RENDERING ---
 
 def render_analytics():
-    st.title("⚖️ Weight")
+    st.markdown('<div style="font-family:Syne;font-size:26px;font-weight:800;color:#F0EFE8;letter-spacing:-0.04em;margin-bottom:4px;">Weight</div>', unsafe_allow_html=True)
     db = get_db()
     profile = fetch_profile_cached(db) or {}
     GOAL_WEIGHT = profile.get("goal_weight_kg") or 64.0
@@ -129,7 +154,7 @@ def render_analytics():
         st.divider()
 
     # 2. Unified Logging Form
-    st.subheader("Weight & Body Fat Log")
+    st.markdown('<div style="font-family:Syne;font-size:20px;font-weight:700;color:#F0EFE8;margin-bottom:12px;">Weight & Body Fat Log</div>', unsafe_allow_html=True)
     with st.form("weight_form_unified"):
         c1, c2, c3 = st.columns(3)
         today_w = c1.number_input("Weight (kg)", min_value=30.0, step=0.1)
@@ -139,7 +164,9 @@ def render_analytics():
         notes = st.text_input("Notes (optional)")
         if st.form_submit_button("💾 Save Stats", use_container_width=True):
             if db.check_duplicate_weight(str(w_date)) > 0:
-                st.warning(f"⚠️ Duplicate entry already exists for {w_date}. Please use the Weight Log tab to overwrite.")
+                st.markdown("""
+                <div style="background:rgba(239,159,39,0.08);border:0.5px solid rgba(239,159,39,0.3);border-radius:8px;padding:10px 14px;margin:8px 0;font-size:13px;color:#EF9F27;font-family:DM Sans;">
+                ⚠️ Duplicate entry already exists for """ + str(w_date) + """. Please use the Data Manager to overwrite.</div>""", unsafe_allow_html=True)
             else:
                 _bkk = pytz.timezone("Asia/Bangkok")
                 if db.save_weight({
@@ -157,26 +184,25 @@ def render_analytics():
     chart_l, chart_r = st.columns(2)
     
     with chart_l:
-        st.subheader("📈 Weight Trend")
-        render_chart_safely(df_weight, 'Date', 'Weight', None)
+        render_chart_safely(df_weight, 'Date', 'Weight', "Weight Trend", primary_color='#C8F135', key="weight_trend_tab")
 
     with chart_r:
         if not df_weight.empty and df_weight['body_fat_pct'].notna().any():
-            st.subheader("📉 Body Fat % Trend")
             plot_bf_df = df_weight.dropna(subset=['body_fat_pct']).sort_values('Date')
             fig_bf = px.line(
                 plot_bf_df,
                 x='Date', y='body_fat_pct',
-                labels={'Date': 'Date', 'body_fat_pct': 'Body Fat (%)'},
-                color_discrete_sequence=['#F5A623']
+                labels={'Date': 'Date', 'body_fat_pct': 'Body Fat (%)'}
             )
             fig_bf.update_traces(mode='lines+markers')
-            st.plotly_chart(fig_bf, width='stretch')
+            apply_dark_theme(fig_bf, '#F13568')
+            st.markdown('<div style="font-family:Syne;font-size:18px;font-weight:700;color:#F0EFE8;margin-bottom:8px;">Body Fat % Trend</div>', unsafe_allow_html=True)
+            st.plotly_chart(fig_bf, use_container_width=True, key="bodyfat_trend_tab")
         else:
             st.info("Log body fat to see the trend chart.")
 
 def render_nutrition_analysis():
-    st.subheader("🥦 Nutrition & Energy")
+    st.markdown('<div style="font-family:Syne;font-size:22px;font-weight:800;color:#F0EFE8;letter-spacing:-0.04em;margin-bottom:12px;">Nutrition & Energy</div>', unsafe_allow_html=True)
     db = get_db()
     profile = fetch_profile_cached(db) or {}
     GOAL_CALORIES = profile.get("goal_calories") or 2500
@@ -226,8 +252,6 @@ def render_nutrition_analysis():
     prot_val = df_today['Protein (g)'].sum()
     carb_val = df_today['Carbs (g)'].sum()
     fat_val  = df_today['Fat (g)'].sum()
-    # Supplements: use last entry only (boolean — not cumulative)
-    latest   = df_today.iloc[-1]
     
     c1, c2, c3, c4 = st.columns(4)
     for col, (label, goal) in zip([c1, c2, c3, c4], GOALS.items()):
@@ -243,25 +267,28 @@ def render_nutrition_analysis():
     st.divider()
     
     # Dynamic Supplement Status based on Profile Defaults
-    st.markdown("### Supplements")
+    st.markdown('<div style="font-family:Syne;font-size:18px;font-weight:700;color:#F0EFE8;margin-bottom:12px;">Supplements</div>', unsafe_allow_html=True)
     default_sups = profile.get("default_supplements") or []
     if not default_sups:
         st.info("💡 No supplements configured in profile. Go to ⚙️ System → 👤 Edit Profile & Goals to add them.")
     else:
-        cols_per_row = 4
-        for i in range(0, len(default_sups), cols_per_row):
-            row_keys = default_sups[i:i + cols_per_row]
-            cols = st.columns(len(row_keys))
-            for col, sup_key in zip(cols, row_keys):
-                if sup_key in SUPPLEMENT_MAP:
-                    display, _, db_col = SUPPLEMENT_MAP[sup_key]
-                    taken = bool(df_today[db_col].any()) if db_col in df_today.columns else False
-                    status = "✅" if taken else "❌"
-                    col.markdown(f"**{display}**: {status}")
+        pills_html = '<div style="display:flex;flex-wrap:wrap;gap:8px;margin-bottom:16px;">'
+        for sup_key in default_sups:
+            if sup_key in SUPPLEMENT_MAP:
+                display, _, db_col = SUPPLEMENT_MAP[sup_key]
+                taken = bool(df_today[db_col].any()) if db_col in df_today.columns else False
+                if taken:
+                    pills_html += f'<div style="background:rgba(200,241,53,0.08);border:0.5px solid rgba(200,241,53,0.2);color:#C8F135;padding:4px 12px;border-radius:20px;font-size:11px;font-family:DM Sans;font-weight:500;">{display}</div>'
+                else:
+                    pills_html += f'<div style="background:#1A1A1F;border:0.5px solid rgba(255,255,255,0.07);color:#444440;padding:4px 12px;border-radius:20px;font-size:11px;font-family:DM Sans;font-weight:500;">{display}</div>'
+        pills_html += '</div>'
+        st.markdown(pills_html, unsafe_allow_html=True)
 
     st.divider()
-    st.markdown("### Daily Progress (%)")
-    pct_data = []
+    st.markdown('<div style="font-family:Syne;font-size:18px;font-weight:700;color:#F0EFE8;margin-bottom:12px;">Daily Progress (%)</div>', unsafe_allow_html=True)
+    
+    progress_html = ""
+    macro_colors = {"Calories": "#C8F135", "Protein": "#F13568", "Carbs": "#35C8F1", "Fat": "#EF9F27"}
     for label, goal in GOALS.items():
         if label == "Calories": val = cal_val
         elif label == "Protein": val = prot_val
@@ -269,14 +296,25 @@ def render_nutrition_analysis():
         else: val = fat_val
         
         pct = min(100, (val / goal * 100)) if goal > 0 else 0
-        pct_data.append({"Macro": label, "Percentage": pct})
-    
-    st.bar_chart(pd.DataFrame(pct_data).set_index("Macro"), horizontal=True)
+        color = macro_colors.get(label, "#C8F135")
+        
+        progress_html += f"""
+        <div style="margin-bottom:10px;">
+          <div style="display:flex;justify-content:space-between;margin-bottom:4px;">
+            <span style="font-size:11px;color:#888880;font-family:DM Sans;">{label}</span>
+            <span style="font-size:11px;color:#F0EFE8;font-weight:500;">{val:.0f} / {goal}</span>
+          </div>
+          <div style="height:4px;background:#1F1F26;border-radius:2px;">
+            <div style="width:{pct}%;height:100%;background:{color};border-radius:2px;transition:width 0.3s;"></div>
+          </div>
+        </div>
+        """
+    st.markdown(progress_html, unsafe_allow_html=True)
 
     # Section: Meal Score Trend
     if 'meal_score' in df_nut.columns and df_nut['meal_score'].notna().any():
         st.divider()
-        st.subheader("⭐ Meal Score Trend")
+        st.markdown('<div style="font-family:Syne;font-size:18px;font-weight:700;color:#F0EFE8;margin-bottom:12px;">Meal Score Trend</div>', unsafe_allow_html=True)
         # Ensure we drop NaNs for the chart and sort by Date
         plot_ms_df = df_nut.dropna(subset=['meal_score']).copy()
         plot_ms_df['Date_plot'] = pd.to_datetime(plot_ms_df['Date'], format='ISO8601', utc=True).dt.tz_convert(None)
@@ -284,19 +322,15 @@ def render_nutrition_analysis():
         fig_ms = px.line(
             plot_ms_df,
             x='Date_plot', y='meal_score',
-            labels={'Date_plot': 'Date', 'meal_score': 'Meal Score'},
-            color_discrete_sequence=['#F5A623']
+            labels={'Date_plot': 'Date', 'meal_score': 'Meal Score'}
         )
         fig_ms.update_yaxes(range=[0, 10.5]) # Score is 1-10, give some breathing room
         fig_ms.add_hline(y=7, line_dash="dash", line_color="gray", annotation_text="Good")
-        st.plotly_chart(fig_ms, width='stretch')
+        apply_dark_theme(fig_ms, '#EF9F27')
+        st.plotly_chart(fig_ms, use_container_width=True, key="meal_score_trend")
 
     st.divider()
-    st.subheader("💊 Supplement Compliance (last 30 days)")
-
-    # Load profile to get user's configured supplements
-    profile = fetch_profile_cached(db) or {}
-    default_sups = profile.get("default_supplements") or []
+    st.markdown('<div style="font-family:Syne;font-size:18px;font-weight:700;color:#F0EFE8;margin-bottom:12px;">Supplement Compliance (last 30 days)</div>', unsafe_allow_html=True)
 
     # Total unique logging days
     total_days = df_nut['Date_date'].nunique()
@@ -319,12 +353,13 @@ def render_nutrition_analysis():
             x="Compliance (%)", y="Supplement",
             orientation="h",
             color="Compliance (%)",
-            color_continuous_scale=["#D85A30", "#F5A623", "#5DCAA5"],
+            color_continuous_scale=["#F13568", "#EF9F27", "#C8F135"],
             range_color=[0, 100],
             labels={"Compliance (%)": "Days taken (%)"}
         )
         fig_comp.update_layout(showlegend=False, coloraxis_showscale=False)
-        st.plotly_chart(fig_comp, width='stretch')
+        apply_dark_theme(fig_comp)
+        st.plotly_chart(fig_comp, use_container_width=True, key="supplement_compliance")
     else:
         st.info("No supplement data yet.")
 
@@ -352,33 +387,40 @@ def render_overview():
         tr_score = wellness[0].get("training_readiness")
 
     # Section A — Header
-    st.header("🏠 Daily Overview")
-    st.caption(f"Today: {today.strftime('%A, %d %B %Y')}")
+    st.markdown(f"""
+    <div style="font-family:Syne;font-size:26px;font-weight:800;color:#F0EFE8;letter-spacing:-0.04em;margin:0 0 4px;">Daily Overview</div>
+    <div style="font-size:12px;color:#888880;font-family:DM Sans;font-weight:300;margin-bottom:20px;">{today.strftime('%A, %d %B %Y')}</div>
+    """, unsafe_allow_html=True)
 
     if profile:
-        with st.container(border=True):
-            st.markdown("### 👤 Profile Summary")
-            pc1, pc2, pc3, pc4 = st.columns(4)
-            pc1.metric("Weight", f"{profile.get('weight_kg', 'N/A')} kg")
-            pc2.metric("Height", f"{profile.get('height_cm', 'N/A')} cm")
-            pc3.metric("Body Fat", f"{profile.get('body_fat_pct', 'N/A')}%")
-            
-            goal_w = profile.get('goal_weight_kg')
-            curr_w = profile.get('weight_kg')
-            if goal_w and curr_w:
-                diff = round(curr_w - goal_w, 1)
-                pc4.metric("To Goal", f"{abs(diff)} kg", delta=f"{-diff:+.1f} kg")
-            else:
-                pc4.metric("To Goal", "N/A")
-                
-            if profile.get("supplements"):
-                st.caption("💊 " + " · ".join(profile["supplements"]))
+        goal_w = profile.get('goal_weight_kg')
+        curr_w = profile.get('weight_kg')
+        to_goal_html = ""
+        if goal_w and curr_w:
+            diff = round(curr_w - goal_w, 1)
+            to_goal_html = f"Metric: To Goal | Value: {abs(diff)} kg | Delta: {-diff:+.1f} kg"
+        
+        profile_grid = f"""
+        <div style="display:grid;grid-template-columns:repeat(4,1fr);gap:12px;">
+            <div><div style="font-size:10px;color:#888880;text-transform:uppercase;letter-spacing:0.04em;margin-bottom:4px;">Weight</div><div style="font-family:Syne;font-size:20px;font-weight:700;color:#F0EFE8;">{profile.get('weight_kg', 'N/A')} kg</div></div>
+            <div><div style="font-size:10px;color:#888880;text-transform:uppercase;letter-spacing:0.04em;margin-bottom:4px;">Height</div><div style="font-family:Syne;font-size:20px;font-weight:700;color:#F0EFE8;">{profile.get('height_cm', 'N/A')} cm</div></div>
+            <div><div style="font-size:10px;color:#888880;text-transform:uppercase;letter-spacing:0.04em;margin-bottom:4px;">Body Fat</div><div style="font-family:Syne;font-size:20px;font-weight:700;color:#F0EFE8;">{profile.get('body_fat_pct', 'N/A')}%</div></div>
+            <div><div style="font-size:10px;color:#888880;text-transform:uppercase;letter-spacing:0.04em;margin-bottom:4px;">To Goal</div><div style="font-family:Syne;font-size:20px;font-weight:700;color:#F0EFE8;">{abs(curr_w - goal_w) if goal_w and curr_w else 'N/A'} kg</div></div>
+        </div>
+        """
+        
+        st.markdown(f"""
+        <div style="background:#141417;border:0.5px solid rgba(255,255,255,0.07);border-radius:12px;padding:16px 20px;margin-bottom:12px;">
+            <div style="font-family:Syne;font-size:12px;font-weight:700;color:#444440;letter-spacing:0.12em;text-transform:uppercase;margin-bottom:12px;">Profile</div>
+            {profile_grid}
+        </div>""", unsafe_allow_html=True)
 
     # Section B — Activity Status Row
     c1, c2, c3, c4, c5 = st.columns(5)
     
     with c1:
         if not work_today.empty:
+            st.markdown('<div style="border-top:1.5px solid #C8F135;border-radius:2px;margin-bottom:-10px;position:relative;z-index:1;"></div>', unsafe_allow_html=True)
             count = work_today['exercise'].nunique()
             vol = work_today['volume'].sum()
             st.metric("🏋️ Training", f"{count} exercises", delta=f"{vol:,.0f} kg volume")
@@ -418,41 +460,38 @@ def render_overview():
 
     # Section C — Nutrition Detail Card
     if not nut_today.empty:
-        with st.container(border=True):
-            st.markdown("### 🍱 Today's Nutrition")
-            # Sum all meals for today
-            prot_total = int(nut_today['protein_g'].sum())
-            carb_total = int(nut_today['carbs_g'].sum())
-            fat_total  = int(nut_today['fat_g'].sum())
-            # Keep latest for supplement boolean check
-            latest_nut = nut_today.iloc[-1]
-            
-            m1, m2, m3 = st.columns(3)
-            with m1:
-                st.metric("Protein", f"{prot_total}g", delta=f"{prot_total - GOAL_PROTEIN}g vs Goal")
-            with m2:
-                st.metric("Carbs", f"{carb_total}g")
-            with m3:
-                st.metric("Fat", f"{fat_total}g")
-            st.divider()
-            
-            # Dynamic Supplement Status based on Profile Defaults
-            st.markdown("#### 💊 Supplements")
-            default_sups = profile.get("default_supplements") or []
-            if not default_sups:
-                st.caption("No supplements configured in profile.")
-            else:
-                cols_per_row = 4
-                for i in range(0, len(default_sups), cols_per_row):
-                    row_keys = default_sups[i:i + cols_per_row]
-                    cols = st.columns(len(row_keys))
-                    for col, sup_key in zip(cols, row_keys):
-                        if sup_key in SUPPLEMENT_MAP:
-                            display, _, db_col = SUPPLEMENT_MAP[sup_key]
-                            # Use .any() across all today's entries — taken in any meal = ✅
-                            taken = bool(nut_today[db_col].any()) if db_col in nut_today.columns else False
-                            status = "✅" if taken else "❌"
-                            col.markdown(f"**{display}**: {status}")
+        st.markdown("""
+        <div style="background:#141417;border:0.5px solid rgba(255,255,255,0.07);border-radius:12px;padding:16px 20px;margin-bottom:12px;">
+            <div style="font-family:Syne;font-size:12px;font-weight:700;color:#444440;letter-spacing:0.12em;text-transform:uppercase;margin-bottom:12px;">Today's Nutrition</div>
+        """, unsafe_allow_html=True)
+        
+        prot_total = int(nut_today['protein_g'].sum())
+        carb_total = int(nut_today['carbs_g'].sum())
+        fat_total  = int(nut_today['fat_g'].sum())
+        
+        m1, m2, m3 = st.columns(3)
+        m1.metric("Protein", f"{prot_total}g", delta=f"{prot_total - GOAL_PROTEIN}g vs Goal")
+        m2.metric("Carbs", f"{carb_total}g")
+        m3.metric("Fat", f"{fat_total}g")
+        
+        st.divider()
+        
+        # Dynamic Supplement Status
+        default_sups = profile.get("default_supplements") or []
+        if default_sups:
+            pills_html = '<div style="display:flex;flex-wrap:wrap;gap:8px;">'
+            for sup_key in default_sups:
+                if sup_key in SUPPLEMENT_MAP:
+                    display, _, db_col = SUPPLEMENT_MAP[sup_key]
+                    taken = bool(nut_today[db_col].any()) if db_col in nut_today.columns else False
+                    if taken:
+                        pills_html += f'<div style="background:rgba(200,241,53,0.08);border:0.5px solid rgba(200,241,53,0.2);color:#C8F135;padding:4px 12px;border-radius:20px;font-size:11px;font-family:DM Sans;font-weight:500;">{display}</div>'
+                    else:
+                        pills_html += f'<div style="background:#1A1A1F;border:0.5px solid rgba(255,255,255,0.07);color:#444440;padding:4px 12px;border-radius:20px;font-size:11px;font-family:DM Sans;font-weight:500;">{display}</div>'
+            pills_html += '</div>'
+            st.markdown(pills_html, unsafe_allow_html=True)
+        
+        st.markdown("</div>", unsafe_allow_html=True)
     else:
         st.info("🍱 No nutrition logged today.")
 
@@ -462,7 +501,7 @@ def render_overview():
     # Section E — Movement Detail Card
     if not run_today.empty:
         with st.container(border=True):
-            st.markdown("### 🏃 Today's Movement")
+            st.markdown('<div style="font-family:Syne;font-size:12px;font-weight:700;color:#444440;letter-spacing:0.12em;text-transform:uppercase;margin-bottom:12px;">Today\'s Movement</div>', unsafe_allow_html=True)
             # Show latest run details
             last_run = run_today.iloc[-1]
             r1, r2, r3, r4 = st.columns(4)
@@ -476,7 +515,7 @@ def render_overview():
     st.divider()
 
     # Section F — Progressive Overload Alert
-    st.subheader("📈 Progressive Overload Tracking")
+    st.markdown('<div style="font-family:Syne;font-size:18px;font-weight:700;color:#F0EFE8;margin-bottom:12px;">Progressive Overload Tracking</div>', unsafe_allow_html=True)
     vol_data = db.fetch_weekly_volume()
     if vol_data:
         df_vol = pd.DataFrame(vol_data)
@@ -493,9 +532,17 @@ def render_overview():
             if prev_vol > 0:
                 diff_pct = ((curr_vol - prev_vol) / prev_vol) * 100
                 if curr_vol >= prev_vol:
-                    st.success(f"✅ On track — volume up {diff_pct:.1f}% vs last week.")
+                    st.markdown(f"""
+                    <div style="padding:10px 16px;background:rgba(200,241,53,0.06);border:0.5px solid rgba(200,241,53,0.2);border-radius:8px;display:flex;align-items:center;gap:10px;margin:8px 0;">
+                      <div style="width:8px;height:8px;border-radius:50%;background:#C8F135;flex-shrink:0;"></div>
+                      <span style="font-size:13px;color:#F0EFE8;font-family:DM Sans;">Volume up <strong style="color:#C8F135;">{diff_pct:.1f}%</strong> vs last week</span>
+                    </div>""", unsafe_allow_html=True)
                 else:
-                    st.warning(f"⚠️ Weekly volume is down {abs(diff_pct):.1f}% vs last week.")
+                    st.markdown(f"""
+                    <div style="padding:10px 16px;background:rgba(241,53,104,0.06);border:0.5px solid rgba(241,53,104,0.2);border-radius:8px;display:flex;align-items:center;gap:10px;margin:8px 0;">
+                      <div style="width:8px;height:8px;border-radius:50%;background:#F13568;flex-shrink:0;"></div>
+                      <span style="font-size:13px;color:#F0EFE8;font-family:DM Sans;">Volume down <strong style="color:#F13568;">{abs(diff_pct):.1f}%</strong> vs last week</span>
+                    </div>""", unsafe_allow_html=True)
             else:
                 st.info("📊 Comparison not possible (previous week volume was 0).")
         else:
@@ -520,9 +567,9 @@ def render_overview():
         df_wrk_plot = safe_numeric(df_wrk_plot, ['Volume'])
 
     with l:
-        render_chart_safely(df_wrk_plot, 'Date', 'Volume', "Weekly Training Volume")
+        render_chart_safely(df_wrk_plot, 'Date', 'Volume', "Weekly Training Volume", primary_color='#C8F135', key="volume_trend_overview")
     with r:
-        render_chart_safely(df_w_plot, 'Date', 'Weight', "Weight Progression")
+        render_chart_safely(df_w_plot, 'Date', 'Weight', "Weight Progression", primary_color='#C8F135', key="weight_trend_overview")
 
     st.divider()
     render_export_section()
@@ -530,7 +577,7 @@ def render_overview():
 @st.fragment
 def render_data_manager():
     db = get_db()
-    st.header("🗂️ Data Manager")
+    st.markdown('<div style="font-family:Syne;font-size:26px;font-weight:800;color:#F0EFE8;letter-spacing:-0.04em;margin-bottom:4px;">Data Manager</div>', unsafe_allow_html=True)
     st.caption("Review and delete individual entries across all logs.")
 
     # Workout Entries
@@ -553,17 +600,16 @@ def render_data_manager():
             selected_rows = event.selection.rows
             if selected_rows:
                 selected_idx = selected_rows[0]
-                # Re-sort full df to match display order if needed, but display is already sorted and reset
-                # So we sort full df the same way to ensure iloc matches
                 df_full_sorted = df.sort_values('log_ts', ascending=False).reset_index(drop=True)
                 selected_entry = df_full_sorted.iloc[selected_idx]
                 
-                st.warning(
-                    f"Delete **{selected_entry['exercise']}** "
-                    f"logged on {selected_entry['log_ts'].strftime('%Y-%m-%d %H:%M')}?"
-                )
+                st.markdown(f"""
+                <div style="background:rgba(241,53,104,0.08);border:0.5px solid rgba(241,53,104,0.2);border-radius:8px;padding:10px 14px;margin:8px 0;font-size:13px;color:#F13568;font-family:DM Sans;">
+                Delete **{selected_entry['exercise']}** logged on {selected_entry['log_ts'].strftime('%Y-%m-%d %H:%M')}?</div>""", unsafe_allow_html=True)
+                
                 col1, col2 = st.columns([1, 6])
-                if col1.button("🗑️ Confirm Delete", key="confirm_del_workout", type="primary"):
+                st.markdown('<style>[key="confirm_del_workout"] button {background:#F13568 !important;color:#fff !important;border:none !important;}</style>', unsafe_allow_html=True)
+                if col1.button("🗑️ Confirm Delete", key="confirm_del_workout"):
                     db.delete_workout_by_id(str(selected_entry['id']))
                     st.success("Entry deleted.")
                     st.rerun()
@@ -595,12 +641,13 @@ def render_data_manager():
                 df_full_sorted = df.sort_values('log_ts', ascending=False).reset_index(drop=True)
                 selected_entry = df_full_sorted.iloc[selected_idx]
                 
-                st.warning(
-                    f"Delete **{selected_entry['category']} {selected_entry['distance']}km** "
-                    f"logged on {selected_entry['log_ts'].strftime('%Y-%m-%d %H:%M')}?"
-                )
+                st.markdown(f"""
+                <div style="background:rgba(241,53,104,0.08);border:0.5px solid rgba(241,53,104,0.2);border-radius:8px;padding:10px 14px;margin:8px 0;font-size:13px;color:#F13568;font-family:DM Sans;">
+                Delete **{selected_entry['category']} {selected_entry['distance']}km** logged on {selected_entry['log_ts'].strftime('%Y-%m-%d %H:%M')}?</div>""", unsafe_allow_html=True)
+                
                 col1, col2 = st.columns([1, 6])
-                if col1.button("🗑️ Confirm Delete", key="confirm_del_run", type="primary"):
+                st.markdown('<style>[key="confirm_del_run"] button {background:#F13568 !important;color:#fff !important;border:none !important;}</style>', unsafe_allow_html=True)
+                if col1.button("🗑️ Confirm Delete", key="confirm_del_run"):
                     db.delete_run_by_id(str(selected_entry['id']))
                     st.success("Entry deleted.")
                     st.rerun()
@@ -634,12 +681,13 @@ def render_data_manager():
                 df_full_sorted = df.sort_values('log_ts', ascending=False).reset_index(drop=True)
                 selected_entry = df_full_sorted.iloc[selected_idx]
                 
-                st.warning(
-                    f"Delete entry of **{selected_entry['calories']} kcal** "
-                    f"logged on {selected_entry['log_ts'].strftime('%Y-%m-%d %H:%M')}?"
-                )
+                st.markdown(f"""
+                <div style="background:rgba(241,53,104,0.08);border:0.5px solid rgba(241,53,104,0.2);border-radius:8px;padding:10px 14px;margin:8px 0;font-size:13px;color:#F13568;font-family:DM Sans;">
+                Delete entry of **{selected_entry['calories']} kcal** logged on {selected_entry['log_ts'].strftime('%Y-%m-%d %H:%M')}?</div>""", unsafe_allow_html=True)
+                
                 col1, col2 = st.columns([1, 6])
-                if col1.button("🗑️ Confirm Delete", key="confirm_del_nutrition", type="primary"):
+                st.markdown('<style>[key="confirm_del_nutrition"] button {background:#F13568 !important;color:#fff !important;border:none !important;}</style>', unsafe_allow_html=True)
+                if col1.button("🗑️ Confirm Delete", key="confirm_del_nutrition"):
                     db.delete_nutrition_by_id(str(selected_entry['id']))
                     st.success("Entry deleted.")
                     st.rerun()
@@ -671,12 +719,13 @@ def render_data_manager():
                 df_full_sorted = df.sort_values('log_ts', ascending=False).reset_index(drop=True)
                 selected_entry = df_full_sorted.iloc[selected_idx]
                 
-                st.warning(
-                    f"Delete weight entry of **{selected_entry['weight']} kg** "
-                    f"logged on {selected_entry['log_ts'].strftime('%Y-%m-%d %H:%M')}?"
-                )
+                st.markdown(f"""
+                <div style="background:rgba(241,53,104,0.08);border:0.5px solid rgba(241,53,104,0.2);border-radius:8px;padding:10px 14px;margin:8px 0;font-size:13px;color:#F13568;font-family:DM Sans;">
+                Delete weight entry of **{selected_entry['weight']} kg** logged on {selected_entry['log_ts'].strftime('%Y-%m-%d %H:%M')}?</div>""", unsafe_allow_html=True)
+                
                 col1, col2 = st.columns([1, 6])
-                if col1.button("🗑️ Confirm Delete", key="confirm_del_weight", type="primary"):
+                st.markdown('<style>[key="confirm_del_weight"] button {background:#F13568 !important;color:#fff !important;border:none !important;}</style>', unsafe_allow_html=True)
+                if col1.button("🗑️ Confirm Delete", key="confirm_del_weight"):
                     db.delete_weight_by_id(str(selected_entry['id']))
                     st.success("Entry deleted.")
                     st.rerun()
@@ -687,7 +736,7 @@ def render_data_manager():
 
 def render_export_section():
     db = get_db()
-    st.subheader("📥 Export Data")
+    st.markdown('<div style="font-family:Syne;font-size:22px;font-weight:700;color:#F0EFE8;margin-bottom:12px;">Export Data</div>', unsafe_allow_html=True)
 
     col1, col2, col3 = st.columns(3)
 
@@ -700,8 +749,7 @@ def render_export_section():
             "⬇️ Workouts CSV",
             data=csv,
             file_name=f"workouts_{datetime.now().strftime('%Y%m%d')}.csv",
-            mime="text/csv",
-            width='stretch'
+            mime="text/csv"
         )
 
     # Nutrition
@@ -713,8 +761,7 @@ def render_export_section():
             "⬇️ Nutrition CSV",
             data=csv,
             file_name=f"nutrition_{datetime.now().strftime('%Y%m%d')}.csv",
-            mime="text/csv",
-            width='stretch'
+            mime="text/csv"
         )
 
     # Weight
@@ -726,189 +773,5 @@ def render_export_section():
             "⬇️ Weight CSV",
             data=csv,
             file_name=f"weight_{datetime.now().strftime('%Y%m%d')}.csv",
-            mime="text/csv",
-            width='stretch'
+            mime="text/csv"
         )
-
-def render_wellness():
-    db = get_db()
-    st.header("🔋 Wellness & Recovery")
-    
-    # --- MANUAL ENTRY FORM ---
-    with st.expander("📝 Log Daily Wellness", expanded=True):
-        with st.form("wellness_manual_form", clear_on_submit=True):
-            col1, col2 = st.columns(2)
-            _bkk = pytz.timezone("Asia/Bangkok")
-            log_date = col1.date_input("Log Date", value=datetime.now(_bkk).date())
-            resting_hr = col2.number_input("Resting Heart Rate (bpm)", min_value=30, max_value=150, value=55, step=1)
-
-            st.markdown("---")
-            st.markdown("### 😴 Sleep Session")
-            t1, t2 = st.columns(2)
-            sleep_start_time = t1.time_input("Sleep Start Time", value=datetime.strptime("22:00", "%H:%M").time())
-            sleep_end_time = t2.time_input("Sleep End Time", value=datetime.strptime("06:00", "%H:%M").time())
-            
-            sleep_score = st.select_slider("Sleep Quality Score", options=list(range(101)), value=80)
-
-            st.markdown("---")
-            st.markdown("### 📊 Daily Readiness Metrics")
-            m1, m2, m3 = st.columns(3)
-            with m1:
-                stress_avg = st.select_slider("Avg Stress", options=list(range(101)), value=25)
-            with m2:
-                training_readiness = st.select_slider("Training Readiness", options=list(range(101)), value=80)
-            with m3:
-                body_battery_start = st.select_slider("Body Battery (Start)", options=list(range(101)), value=90)
-
-            body_battery_end = st.select_slider("Body Battery (End of Day)", options=list(range(101)), value=50)
-
-            if st.form_submit_button("💾 Save Wellness Data"):
-                try:
-                    # Logic for Cross-Midnight Calculation
-                    # We assume sleep_start is on (log_date - 1 day) if it's late night, 
-                    # but for simplicity, we treat log_date as the 'waking up' date.
-                    # Start is usually night before, End is morning of log_date.
-                    
-                    start_dt = datetime.combine(log_date - timedelta(days=1), sleep_start_time)
-                    end_dt = datetime.combine(log_date, sleep_end_time)
-                    
-                    # If end_dt is still before or equal to start_dt, adjust (e.g., sleeping after midnight)
-                    if end_dt <= start_dt:
-                        # Case: user slept at 1 AM and woke up at 8 AM on the same log_date
-                        start_dt = datetime.combine(log_date, sleep_start_time)
-                        if end_dt <= start_dt:
-                             # This should technically not happen if they sleep and wake on same day 
-                             # unless it's a very short nap or error.
-                             pass
-
-                    duration_min = int((end_dt - start_dt).total_seconds() / 60)
-
-                    # Validation
-                    if duration_min <= 0:
-                        st.error("❌ Invalid sleep duration. Please check your start and end times.")
-                    else:
-                        payload = {
-                            "log_date": str(log_date),
-                            "sleep_start": start_dt.isoformat(),
-                            "sleep_end": end_dt.isoformat(),
-                            "sleep_duration_min": duration_min,
-                            "sleep_score": int(sleep_score),
-                            "resting_hr": int(resting_hr),
-                            "stress_avg": int(stress_avg),
-                            "body_battery_start": int(body_battery_start),
-                            "body_battery_end": int(body_battery_end),
-                            "training_readiness": int(training_readiness)
-                        }
-                        
-                        if db.save_wellness(payload):
-                            st.success(f"✅ Wellness data for {log_date} saved successfully!")
-                            st.rerun()
-                        else:
-                            st.error("❌ Database Error: Could not save wellness entry.")
-                            
-                except Exception as e:
-                    st.error(f"⚠️ Error processing data: {str(e)}")
-
-    st.divider()
-
-    wellness = fetch_wellness_cached(db, days=30)
-    if not wellness:
-        st.info("No wellness data yet. Start by logging your data above.")
-        return
-
-    df = pd.DataFrame(wellness)
-    df['log_date'] = pd.to_datetime(df['log_date'], format='ISO8601')
-    df = df.sort_values('log_date')
-
-    # Section A — Today's snapshot
-    latest = df.iloc[-1]
-    st.subheader("📊 Latest Snapshot")
-    c1, c2, c3, c4, c5 = st.columns(5)
-    c1.metric("Sleep Score", f"{int(latest['sleep_score']) if pd.notna(latest['sleep_score']) else 'N/A'}")
-    c2.metric("Resting HR", f"{int(latest['resting_hr']) if pd.notna(latest['resting_hr']) else 'N/A'} bpm")
-    c3.metric("Avg Stress", f"{int(latest['stress_avg']) if pd.notna(latest['stress_avg']) else 'N/A'}")
-    c4.metric("Body Battery",
-        f"{int(latest['body_battery_start']) if pd.notna(latest['body_battery_start']) else 'N/A'}"
-    )
-    c5.metric(
-        "Training Readiness",
-        f"{int(latest['training_readiness']) if pd.notna(latest.get('training_readiness')) else 'N/A'}"
-    )
-
-    # Section B — Sleep duration bar
-    if 'sleep_duration_min' in df.columns:
-        st.subheader("😴 Sleep Duration (last 30 days)")
-        df['sleep_hours'] = df['sleep_duration_min'] / 60
-        fig_sleep = px.bar(
-            df, x='log_date', y='sleep_hours',
-            labels={'log_date': 'Date', 'sleep_hours': 'Hours'},
-            color_discrete_sequence=['#5DCAA5']
-        )
-        fig_sleep.add_hline(y=8, line_dash="dash", line_color="gray", annotation_text="8hr goal")
-        fig_sleep.update_layout(showlegend=False)
-        st.plotly_chart(fig_sleep, width='stretch')
-
-    # Section C — RHR trend
-    st.subheader("❤️ Resting Heart Rate Trend")
-    fig_rhr = px.line(
-        df.dropna(subset=['resting_hr']),
-        x='log_date', y='resting_hr',
-        labels={'log_date': 'Date', 'resting_hr': 'RHR (bpm)'},
-        color_discrete_sequence=['#D85A30']
-    )
-    st.plotly_chart(fig_rhr, width='stretch')
-
-    # Section D — Body Battery
-    st.subheader("🔋 Body Battery")
-    fig_bb = px.line(
-        df.dropna(subset=['body_battery_end']),
-        x='log_date', y='body_battery_end',
-        labels={'log_date': 'Date', 'body_battery_end': 'Body Battery (end of day)'},
-        color_discrete_sequence=['#378ADD']
-    )
-    st.plotly_chart(fig_bb, width='stretch')
-
-    # Training Readiness
-    st.subheader("💪 Training Readiness Trend")
-    if 'training_readiness' in df.columns and df['training_readiness'].notna().any():
-        fig_tr = px.line(
-            df.dropna(subset=['training_readiness']),
-            x='log_date', y='training_readiness',
-            labels={'log_date': 'Date', 'training_readiness': 'Training Readiness'},
-            color_discrete_sequence=['#7F77DD']
-        )
-        fig_tr.add_hline(y=75, line_dash="dash", line_color="gray", annotation_text="High readiness")
-        fig_tr.add_hline(y=40, line_dash="dash", line_color="orange", annotation_text="Low readiness")
-        st.plotly_chart(fig_tr, width='stretch')
-    else:
-        st.info("No training readiness data yet.")
-
-    # Section E — Correlation: Sleep Score vs Training Volume
-    st.subheader("🔗 Sleep vs Next-Day Training Volume")
-    workouts = fetch_workouts_cached(db)
-    if workouts:
-
-        df_work = pd.DataFrame(workouts)
-        df_work['log_ts'] = pd.to_datetime(df_work['log_ts'], format='ISO8601', utc=True).dt.tz_convert(None)
-        df_work['log_date'] = df_work['log_ts'].dt.date
-        df_vol = df_work.groupby('log_date')['volume'].sum().reset_index()
-        df_vol['log_date'] = pd.to_datetime(df_vol['log_date'], format='ISO8601')
-        df_vol['next_date'] = df_vol['log_date']
-        df['log_date_only'] = df['log_date'].dt.date
-        df_vol['log_date_only'] = df_vol['log_date'].dt.date
-
-        df_corr = df[['log_date_only', 'sleep_score']].merge(
-            df_vol[['log_date_only', 'volume']],
-            left_on='log_date_only', right_on='log_date_only',
-            how='inner'
-        )
-        if not df_corr.empty and len(df_corr) >= 3:
-            fig_corr = px.scatter(
-                df_corr, x='sleep_score', y='volume',
-                trendline='ols',
-                labels={'sleep_score': 'Sleep Score', 'volume': 'Training Volume (kg)'},
-                color_discrete_sequence=['#7F77DD']
-            )
-            st.plotly_chart(fig_corr, width='stretch')
-        else:
-            st.info("Need at least 3 data points to show correlation.")
