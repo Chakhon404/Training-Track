@@ -148,7 +148,6 @@ def render_biohack_form():
         now = time.time()
         if now - st.session_state.get("_last_nut_draft_save", 0) < 3:
             return
-        st.session_state["_last_nut_draft_save"] = now
 
         data = {
             "date": str(st.session_state.nut_date),
@@ -163,6 +162,7 @@ def render_biohack_form():
         for json_key, (display, sess_key, db_col) in SUPPLEMENT_MAP.items():
             data[db_col] = st.session_state.get(sess_key, False)
         db.save_draft(form_key, data)
+        st.session_state["_last_nut_draft_save"] = now
 
     col_d, col_t = st.columns(2)
     with col_d:

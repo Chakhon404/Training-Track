@@ -264,9 +264,9 @@ def render_workout_form():
         if "work_plan_name" not in st.session_state:
             return
         now = time.time()
-        if now - st.session_state.get("_last_workout_draft_save", 0) < 3:
+        last_save = st.session_state.get("_last_workout_draft_save", 0)
+        if now - last_save < 3:
             return
-        st.session_state["_last_workout_draft_save"] = now
 
         curr_plan = st.session_state.get("work_plan_name")
         if not curr_plan:
@@ -292,7 +292,9 @@ def render_workout_form():
             "plan_name": curr_plan,
             "exercises": ex_data
         }
+        # Write timestamp AFTER DB call to avoid triggering re-render in callback
         db.save_draft(form_key, data)
+        st.session_state["_last_workout_draft_save"] = now
 
     selected_plan_name = st.selectbox("Select Training Plan", plan_names, key="work_plan_name", on_change=on_plan_change)
     selected_plan = next(p for p in plans if p['name'] == selected_plan_name)
@@ -427,13 +429,14 @@ def render_workout_form():
         for s in range(nsets):
             # Checkbox state for "Done"
             is_done = st.session_state.get(f"work_done_{i}_{s}", False)
-            
-            # Use a container to potentially highlight the row
+            # Set label with inline done indicator — no dynamic CSS injection
+            set_label = f'<span style="font-size:13px;font-weight:700;color:{"#C8F135" if is_done else "#888880"};">{"✓" if is_done else s+1}</span>'
+
             row_container = st.container()
             with row_container:
                 if ex_t == "Heavy":
                     cols = st.columns([0.3, 1, 1, 0.4, 0.4, 0.3])
-                    cols[0].markdown(f"**{s+1}**")
+                    cols[0].markdown(set_label, unsafe_allow_html=True)
                     w = cols[1].number_input("W", label_visibility="collapsed", min_value=0.0, step=0.5, key=f"work_w_{i}_{s}", on_change=save_workout_draft)
                     r = cols[2].number_input("R", label_visibility="collapsed", min_value=0, step=1, key=f"work_r_{i}_{s}", on_change=save_workout_draft)
                     
@@ -456,7 +459,7 @@ def render_workout_form():
 
                 elif ex_t == "Timed":
                     cols = st.columns([0.3, 2, 0.4, 0.4, 0.3])
-                    cols[0].markdown(f"**{s+1}**")
+                    cols[0].markdown(set_label, unsafe_allow_html=True)
                     d = cols[1].number_input("D", label_visibility="collapsed", min_value=0, step=5, key=f"work_d_{i}_{s}", on_change=save_workout_draft)
                     
                     # PR Check
@@ -474,7 +477,7 @@ def render_workout_form():
                             st.rerun()
                 else: # Bodyweight
                     cols = st.columns([0.3, 2, 0.4, 0.4, 0.3])
-                    cols[0].markdown(f"**{s+1}**")
+                    cols[0].markdown(set_label, unsafe_allow_html=True)
                     r = cols[1].number_input("R", label_visibility="collapsed", min_value=0, step=1, key=f"work_r_{i}_{s}", on_change=save_workout_draft)
                     
                     # PR Check
@@ -491,13 +494,6 @@ def render_workout_form():
                             st.session_state[f"work_nsets_{i}"] -= 1
                             st.rerun()
             
-            # Apply visual highlight if done
-            if is_done:
-                st.markdown(
-                    f"""<style>div[data-testid="stVerticalBlock"] > div:nth-child({(s*2)+3}) {{ border-left: 5px solid #C8F135; padding-left: 10px; }}</style>""", 
-                    unsafe_allow_html=True
-                )
-
         if st.button(f"Add Set", key=f"add_set_{i}"):
             st.session_state[f"work_nsets_{i}"] += 1
             st.rerun()

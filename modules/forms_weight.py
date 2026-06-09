@@ -44,7 +44,6 @@ def render_weight_form():
         now = time.time()
         if now - st.session_state.get("_last_weight_draft_save", 0) < 3:
             return
-        st.session_state["_last_weight_draft_save"] = now
 
         data = {
             "date": str(st.session_state.weight_date),
@@ -54,6 +53,7 @@ def render_weight_form():
             "weight_notes": st.session_state.weight_notes
         }
         db.save_draft(form_key, data)
+        st.session_state["_last_weight_draft_save"] = now
 
     col_d, col_t = st.columns(2)
     with col_d:

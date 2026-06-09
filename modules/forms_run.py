@@ -32,7 +32,6 @@ def render_running_form():
         now = time.time()
         if now - st.session_state.get("_last_run_draft_save", 0) < 3:
             return
-        st.session_state["_last_run_draft_save"] = now
 
         data = {
             "cat": st.session_state.run_cat,
@@ -42,6 +41,7 @@ def render_running_form():
             "hrr": st.session_state.run_hrr
         }
         db.save_draft(form_key, data)
+        st.session_state["_last_run_draft_save"] = now
 
     # --- Standardized Widget Initialization ---
     if "run_date" not in st.session_state or "run_time" not in st.session_state:
