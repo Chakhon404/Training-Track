@@ -416,7 +416,7 @@ def render_overview():
         </div>""", unsafe_allow_html=True)
 
     # Section B — Activity Status Row
-    c1, c2, c3, c4, c5 = st.columns(5)
+    c1, c2, c3, c4 = st.columns(4)
     
     with c1:
         if not work_today.empty:
@@ -429,28 +429,25 @@ def render_overview():
 
     with c2:
         if not run_today.empty:
+            st.markdown('<div style="border-top:1.5px solid #C8F135;border-radius:2px;margin-bottom:-10px;position:relative;z-index:1;"></div>', unsafe_allow_html=True)
             dist = run_today['distance'].sum()
             cat = run_today.iloc[-1]['category']
             st.metric("Movement", f"{dist:.1f} km", delta=cat)
         else:
             st.metric("Movement", "Rest day")
 
-    with c3:
-        st.metric(
-            "Readiness",
-            f"{tr_score}/100" if tr_score else "N/A",
-            help="Garmin Training Readiness score"
-        )
 
-    with c4:
+    with c3:
         if not weight_today.empty:
+            st.markdown('<div style="border-top:1.5px solid #C8F135;border-radius:2px;margin-bottom:-10px;position:relative;z-index:1;"></div>', unsafe_allow_html=True)
             w = weight_today.iloc[-1]['weight']
             st.metric("Weight", f"{w} kg")
         else:
             st.metric("Weight", "Not logged")
 
-    with c5:
+    with c4:
         if not nut_today.empty:
+            st.markdown('<div style="border-top:1.5px solid #C8F135;border-radius:2px;margin-bottom:-10px;position:relative;z-index:1;"></div>', unsafe_allow_html=True)
             cal = int(nut_today['calories'].sum())
             st.metric("Calories", f"{cal} kcal", delta=f"{cal - GOAL_CALORIES} vs Goal")
         else:
