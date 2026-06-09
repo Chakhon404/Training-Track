@@ -9,7 +9,7 @@ import pytz
 from modules.database import (
     get_db, fetch_profile_cached, fetch_workouts_cached,
     fetch_nutrition_cached, fetch_weight_cached, fetch_wellness_cached,
-    fetch_today_summary_cached
+    fetch_today_summary_cached, fetch_runs_cached
 )
 from modules.constants import SUPPLEMENT_MAP
 from modules.forms import render_today_training_summary
@@ -162,11 +162,11 @@ def render_analytics():
         _bkk = pytz.timezone("Asia/Bangkok")
         w_date = c3.date_input("Date", datetime.now(_bkk).date())
         notes = st.text_input("Notes (optional)")
-        if st.form_submit_button("💾 Save Stats", use_container_width=True):
+        if st.form_submit_button("Save Stats", use_container_width=True):
             if db.check_duplicate_weight(str(w_date)) > 0:
                 st.markdown("""
                 <div style="background:rgba(239,159,39,0.08);border:0.5px solid rgba(239,159,39,0.3);border-radius:8px;padding:10px 14px;margin:8px 0;font-size:13px;color:#EF9F27;font-family:DM Sans;">
-                ⚠️ Duplicate entry already exists for """ + str(w_date) + """. Please use the Data Manager to overwrite.</div>""", unsafe_allow_html=True)
+                Duplicate entry already exists for """ + str(w_date) + """. Please use the Data Manager to overwrite.</div>""", unsafe_allow_html=True)
             else:
                 _bkk = pytz.timezone("Asia/Bangkok")
                 if db.save_weight({
@@ -245,7 +245,7 @@ def render_nutrition_analysis():
     df_today = df_nut[df_nut['Date_date'] == today_str]
 
     if df_today.empty:
-        st.info("🍱 Nutrition information for today is not yet available.")
+        st.info("Nutrition information for today is not yet available.")
         return
     # Sum all entries for today (multiple meals)
     cal_val  = df_today['Calories (kcal)'].sum()
@@ -270,7 +270,7 @@ def render_nutrition_analysis():
     st.markdown('<div style="font-family:Syne;font-size:18px;font-weight:700;color:#F0EFE8;margin-bottom:12px;">Supplements</div>', unsafe_allow_html=True)
     default_sups = profile.get("default_supplements") or []
     if not default_sups:
-        st.info("💡 No supplements configured in profile. Go to ⚙️ System → 👤 Edit Profile & Goals to add them.")
+        st.info("No supplements configured in profile. Go to System -> Edit Profile & Goals to add them.")
     else:
         pills_html = '<div style="display:flex;flex-wrap:wrap;gap:8px;margin-bottom:16px;">'
         for sup_key in default_sups:
@@ -423,21 +423,21 @@ def render_overview():
             st.markdown('<div style="border-top:1.5px solid #C8F135;border-radius:2px;margin-bottom:-10px;position:relative;z-index:1;"></div>', unsafe_allow_html=True)
             count = work_today['exercise'].nunique()
             vol = work_today['volume'].sum()
-            st.metric("🏋️ Training", f"{count} exercises", delta=f"{vol:,.0f} kg volume")
+            st.metric("Training", f"{count} exercises", delta=f"{vol:,.0f} kg volume")
         else:
-            st.metric("🏋️ Training", "Rest day")
+            st.metric("Training", "Rest day")
 
     with c2:
         if not run_today.empty:
             dist = run_today['distance'].sum()
             cat = run_today.iloc[-1]['category']
-            st.metric("🏃 Movement", f"{dist:.1f} km", delta=cat)
+            st.metric("Movement", f"{dist:.1f} km", delta=cat)
         else:
-            st.metric("🏃 Movement", "Rest day")
+            st.metric("Movement", "Rest day")
 
     with c3:
         st.metric(
-            "💪 Readiness",
+            "Readiness",
             f"{tr_score}/100" if tr_score else "N/A",
             help="Garmin Training Readiness score"
         )
@@ -445,16 +445,16 @@ def render_overview():
     with c4:
         if not weight_today.empty:
             w = weight_today.iloc[-1]['weight']
-            st.metric("⚖️ Weight", f"{w} kg")
+            st.metric("Weight", f"{w} kg")
         else:
-            st.metric("⚖️ Weight", "Not logged")
+            st.metric("Weight", "Not logged")
 
     with c5:
         if not nut_today.empty:
             cal = int(nut_today['calories'].sum())
-            st.metric("🍱 Calories", f"{cal} kcal", delta=f"{cal - GOAL_CALORIES} vs Goal")
+            st.metric("Calories", f"{cal} kcal", delta=f"{cal - GOAL_CALORIES} vs Goal")
         else:
-            st.metric("🍱 Calories", "Not logged")
+            st.metric("Calories", "Not logged")
 
     st.divider()
 
@@ -493,7 +493,7 @@ def render_overview():
         
         st.markdown("</div>", unsafe_allow_html=True)
     else:
-        st.info("🍱 No nutrition logged today.")
+        st.info("No nutrition logged today.")
 
     # Section D — Training Detail Card
     render_today_training_summary()
@@ -510,15 +510,15 @@ def render_overview():
             r3.metric("Pace", f"{last_run['pace']} /km")
             r4.metric("Avg HR", f"{last_run['hr']} bpm")
     else:
-        st.info("🏃 No movement logged today.")
+        st.info("No movement logged today.")
 
     st.divider()
 
     # Section F — Progressive Overload Alert
     st.markdown('<div style="font-family:Syne;font-size:18px;font-weight:700;color:#F0EFE8;margin-bottom:12px;">Progressive Overload Tracking</div>', unsafe_allow_html=True)
-    vol_data = db.fetch_weekly_volume()
-    if vol_data:
-        df_vol = pd.DataFrame(vol_data)
+    all_workouts_data = fetch_workouts_cached(db)
+    if all_workouts_data:
+        df_vol = pd.DataFrame(all_workouts_data)
         df_vol['log_ts'] = pd.to_datetime(df_vol['log_ts'], format='ISO8601', utc=True).dt.tz_convert(None)
         df_vol['week'] = df_vol['log_ts'].dt.isocalendar().week
         df_vol['year'] = df_vol['log_ts'].dt.isocalendar().year
@@ -544,11 +544,11 @@ def render_overview():
                       <span style="font-size:13px;color:#F0EFE8;font-family:DM Sans;">Volume down <strong style="color:#F13568;">{abs(diff_pct):.1f}%</strong> vs last week</span>
                     </div>""", unsafe_allow_html=True)
             else:
-                st.info("📊 Comparison not possible (previous week volume was 0).")
+                st.info("Comparison not possible (previous week volume was 0).")
         else:
-            st.info("📊 Log at least 2 weeks of training to see overload trends.")
+            st.info("Log at least 2 weeks of training to see overload trends.")
     else:
-        st.info("📊 Log training sessions to see overload trends.")
+        st.info("Log training sessions to see overload trends.")
 
     st.divider()
     
@@ -556,7 +556,7 @@ def render_overview():
     l, r = st.columns(2)
     with st.spinner("Generating charts..."):
         all_workouts = fetch_workouts_cached(db)
-        all_weights  = db.fetch_weight()
+        all_weights  = fetch_weight_cached(db)
         df_wrk_all = pd.DataFrame(all_workouts)
         df_w_all   = pd.DataFrame(all_weights)
 
@@ -581,8 +581,8 @@ def render_data_manager():
     st.caption("Review and delete individual entries across all logs.")
 
     # Workout Entries
-    with st.expander("🏋️ Workout Entries", expanded=False):
-        df = pd.DataFrame(db.fetch_workouts())
+    with st.expander("Workout Entries", expanded=False):
+        df = pd.DataFrame(fetch_workouts_cached(db))
         if not df.empty:
             df['log_ts'] = pd.to_datetime(df['log_ts'], format='ISO8601', utc=True).dt.tz_convert(None)
             display_cols = ['log_ts', 'exercise', 'weight', 'reps', 'rpe', 'volume']
@@ -609,7 +609,7 @@ def render_data_manager():
                 
                 col1, col2 = st.columns([1, 6])
                 st.markdown('<style>[key="confirm_del_workout"] button {background:#F13568 !important;color:#fff !important;border:none !important;}</style>', unsafe_allow_html=True)
-                if col1.button("🗑️ Confirm Delete", key="confirm_del_workout"):
+                if col1.button("Confirm Delete", key="confirm_del_workout"):
                     db.delete_workout_by_id(str(selected_entry['id']))
                     st.success("Entry deleted.")
                     st.rerun()
@@ -619,8 +619,8 @@ def render_data_manager():
             st.info("No entries found.")
 
     # 2. Movement Entries
-    with st.expander("🏃 Movement Entries", expanded=False):
-        df = pd.DataFrame(db.fetch_runs())
+    with st.expander("Movement Entries", expanded=False):
+        df = pd.DataFrame(fetch_runs_cached(db))
         if not df.empty:
             df['log_ts'] = pd.to_datetime(df['log_ts'], format='ISO8601', utc=True).dt.tz_convert(None)
             df_display = df[['log_ts', 'category', 'distance', 'duration', 'pace', 'hr']].copy()
@@ -647,7 +647,7 @@ def render_data_manager():
                 
                 col1, col2 = st.columns([1, 6])
                 st.markdown('<style>[key="confirm_del_run"] button {background:#F13568 !important;color:#fff !important;border:none !important;}</style>', unsafe_allow_html=True)
-                if col1.button("🗑️ Confirm Delete", key="confirm_del_run"):
+                if col1.button("Confirm Delete", key="confirm_del_run"):
                     db.delete_run_by_id(str(selected_entry['id']))
                     st.success("Entry deleted.")
                     st.rerun()
@@ -657,8 +657,8 @@ def render_data_manager():
             st.info("No entries found.")
 
     # 3. Nutrition Entries
-    with st.expander("🍱 Nutrition Entries", expanded=False):
-        df = pd.DataFrame(db.fetch_nutrition())
+    with st.expander("Nutrition Entries", expanded=False):
+        df = pd.DataFrame(fetch_nutrition_cached(db))
         if not df.empty:
             df['log_ts'] = pd.to_datetime(df['log_ts'], format='ISO8601', utc=True).dt.tz_convert(None)
             display_cols = ['log_ts', 'food_name', 'calories', 'protein_g', 'carbs_g', 'fat_g', 'meal_score']
@@ -687,7 +687,7 @@ def render_data_manager():
                 
                 col1, col2 = st.columns([1, 6])
                 st.markdown('<style>[key="confirm_del_nutrition"] button {background:#F13568 !important;color:#fff !important;border:none !important;}</style>', unsafe_allow_html=True)
-                if col1.button("🗑️ Confirm Delete", key="confirm_del_nutrition"):
+                if col1.button("Confirm Delete", key="confirm_del_nutrition"):
                     db.delete_nutrition_by_id(str(selected_entry['id']))
                     st.success("Entry deleted.")
                     st.rerun()
@@ -697,8 +697,8 @@ def render_data_manager():
             st.info("No entries found.")
 
     # 4. Weight Entries
-    with st.expander("⚖️ Weight Entries", expanded=False):
-        df = pd.DataFrame(db.fetch_weight())
+    with st.expander("Weight Entries", expanded=False):
+        df = pd.DataFrame(fetch_weight_cached(db))
         if not df.empty:
             df['log_ts'] = pd.to_datetime(df['log_ts'], format='ISO8601', utc=True).dt.tz_convert(None)
             df_display = df[['log_ts', 'weight', 'notes']].copy()
@@ -725,7 +725,7 @@ def render_data_manager():
                 
                 col1, col2 = st.columns([1, 6])
                 st.markdown('<style>[key="confirm_del_weight"] button {background:#F13568 !important;color:#fff !important;border:none !important;}</style>', unsafe_allow_html=True)
-                if col1.button("🗑️ Confirm Delete", key="confirm_del_weight"):
+                if col1.button("Confirm Delete", key="confirm_del_weight"):
                     db.delete_weight_by_id(str(selected_entry['id']))
                     st.success("Entry deleted.")
                     st.rerun()
@@ -741,36 +741,36 @@ def render_export_section():
     col1, col2, col3 = st.columns(3)
 
     # Workouts
-    workouts = db.fetch_workouts()
+    workouts = fetch_workouts_cached(db)
     if workouts:
         df = pd.DataFrame(workouts).drop(columns=["id"], errors="ignore")
         csv = df.to_csv(index=False).encode("utf-8")
         col1.download_button(
-            "⬇️ Workouts CSV",
+            "Workouts CSV",
             data=csv,
             file_name=f"workouts_{datetime.now().strftime('%Y%m%d')}.csv",
             mime="text/csv"
         )
 
     # Nutrition
-    nutrition = db.fetch_nutrition()
+    nutrition = fetch_nutrition_cached(db)
     if nutrition:
         df = pd.DataFrame(nutrition).drop(columns=["id"], errors="ignore")
         csv = df.to_csv(index=False).encode("utf-8")
         col2.download_button(
-            "⬇️ Nutrition CSV",
+            "Nutrition CSV",
             data=csv,
             file_name=f"nutrition_{datetime.now().strftime('%Y%m%d')}.csv",
             mime="text/csv"
         )
 
     # Weight
-    weight = db.fetch_weight()
+    weight = fetch_weight_cached(db)
     if weight:
         df = pd.DataFrame(weight).drop(columns=["id"], errors="ignore")
         csv = df.to_csv(index=False).encode("utf-8")
         col3.download_button(
-            "⬇️ Weight CSV",
+            "Weight CSV",
             data=csv,
             file_name=f"weight_{datetime.now().strftime('%Y%m%d')}.csv",
             mime="text/csv"

@@ -2,7 +2,7 @@
 # Shared constants used across forms, analytics, and daily_reminder.
 # Keep this file free of any streamlit or database imports.
 
-# json_key → (display_name, session_key, db_column)
+# json_key -> (display_name, session_key, db_column)
 SUPPLEMENT_MAP = {
     "creatine":       ("Creatine",       "nut_crea",         "creatine"),
     "protein_powder": ("Protein Powder", "nut_prot",         "protein_powder"),

@@ -1,5 +1,8 @@
 import streamlit as st
 from supabase import create_client, Client
+import logging
+
+logger = logging.getLogger(__name__)
 
 class TrainingDB:
     def __init__(self):
@@ -8,7 +11,8 @@ class TrainingDB:
             key: str = st.secrets["SUPABASE_KEY"]
             self.supabase: Client = create_client(url, key)
         except Exception as e:
-            st.error(f"Failed to initialize Supabase client: {e}")
+            logger.error(f"[TrainingDB.__init__] {e}", exc_info=True)
+            st.error("Failed to initialize Supabase client. Check your configuration.")
             self.supabase = None
 
     def is_connected(self):
@@ -20,7 +24,7 @@ class TrainingDB:
             response = self.supabase.table("training_plans").select("*").execute()
             return response.data
         except Exception as e:
-            st.error(f"Failed to fetch plans: {e}")
+            logger.error(f"[TrainingDB.fetch_plans] {e}", exc_info=True)
             return []
 
     def add_plan(self, plan_data):
@@ -30,7 +34,8 @@ class TrainingDB:
             st.cache_data.clear()
             return response.data
         except Exception as e:
-            st.error(f"Failed to add plan: {e}")
+            logger.error(f"[TrainingDB.add_plan] {e}", exc_info=True)
+            st.error("Failed to add plan. Check your connection.")
             return None
 
     def delete_plan(self, plan_id):
@@ -40,7 +45,8 @@ class TrainingDB:
             st.cache_data.clear()
             return response.data
         except Exception as e:
-            st.error(f"Failed to delete plan: {e}")
+            logger.error(f"[TrainingDB.delete_plan] {e}", exc_info=True)
+            st.error("Failed to delete plan.")
             return None
 
     def update_plan(self, plan_id: str, plan_data: dict):
@@ -54,7 +60,8 @@ class TrainingDB:
             st.cache_data.clear()
             return True
         except Exception as e:
-            st.error(f"Failed to update plan: {e}")
+            logger.error(f"[TrainingDB.update_plan] {e}", exc_info=True)
+            st.error("Failed to update plan.")
             return False
 
     def save_workout(self, workout_data):
@@ -64,7 +71,8 @@ class TrainingDB:
             st.cache_data.clear()
             return True
         except Exception as e:
-            st.error(f"Failed to save workout: {e}")
+            logger.error(f"[TrainingDB.save_workout] {e}", exc_info=True)
+            st.error("Failed to save workout. Check your connection.")
             return False
 
     def fetch_workouts(self):
@@ -73,7 +81,7 @@ class TrainingDB:
             response = self.supabase.table("workouts").select("*").execute()
             return response.data
         except Exception as e:
-            st.error(f"Failed to fetch workouts: {e}")
+            logger.error(f"[TrainingDB.fetch_workouts] {e}", exc_info=True)
             return []
 
     def save_run(self, run_data):
@@ -83,7 +91,8 @@ class TrainingDB:
             st.cache_data.clear()
             return True
         except Exception as e:
-            st.error(f"Failed to save run: {e}")
+            logger.error(f"[TrainingDB.save_run] {e}", exc_info=True)
+            st.error("Failed to save run.")
             return False
 
     def fetch_runs(self):
@@ -92,7 +101,7 @@ class TrainingDB:
             response = self.supabase.table("running").select("*").execute()
             return response.data
         except Exception as e:
-            st.error(f"Failed to fetch runs: {e}")
+            logger.error(f"[TrainingDB.fetch_runs] {e}", exc_info=True)
             return []
 
     def save_nutrition(self, nutrition_data):
@@ -102,7 +111,8 @@ class TrainingDB:
             st.cache_data.clear()
             return True
         except Exception as e:
-            st.error(f"Failed to save nutrition: {e}")
+            logger.error(f"[TrainingDB.save_nutrition] {e}", exc_info=True)
+            st.error("Failed to save nutrition.")
             return False
 
     def fetch_nutrition(self):
@@ -111,7 +121,7 @@ class TrainingDB:
             response = self.supabase.table("nutrition").select("*").execute()
             return response.data
         except Exception as e:
-            st.error(f"Failed to fetch nutrition: {e}")
+            logger.error(f"[TrainingDB.fetch_nutrition] {e}", exc_info=True)
             return []
 
     def save_weight(self, weight_data):
@@ -121,7 +131,8 @@ class TrainingDB:
             st.cache_data.clear()
             return True
         except Exception as e:
-            st.error(f"Failed to save weight: {e}")
+            logger.error(f"[TrainingDB.save_weight] {e}", exc_info=True)
+            st.error("Failed to save weight.")
             return False
 
     def fetch_weight(self):
@@ -130,10 +141,11 @@ class TrainingDB:
             response = self.supabase.table("weight").select("*").execute()
             return response.data
         except Exception as e:
-            st.error(f"Failed to fetch weight: {e}")
+            logger.error(f"[TrainingDB.fetch_weight] {e}", exc_info=True)
             return []
 
     def fetch_weekly_volume(self):
+        """DEPRECATED: Use fetch_workouts() and filter in-memory instead."""
         if not self.is_connected(): return []
         try:
             response = (
@@ -142,7 +154,8 @@ class TrainingDB:
                 .execute()
             )
             return response.data
-        except Exception:
+        except Exception as e:
+            logger.error(f"[TrainingDB.fetch_weekly_volume] {e}", exc_info=True)
             return []
 
     def fetch_exercise_history(self, exercise_name: str, limit: int = 3):
@@ -157,7 +170,8 @@ class TrainingDB:
                 .execute()
             )
             return response.data
-        except Exception:
+        except Exception as e:
+            logger.error(f"[TrainingDB.fetch_exercise_history] {e}", exc_info=True)
             return []
 
     def fetch_workouts_by_date(self, date: str):
@@ -169,7 +183,8 @@ class TrainingDB:
                 .lte("log_ts", f"{date}T23:59:59")\
                 .execute()
             return response.data
-        except Exception:
+        except Exception as e:
+            logger.error(f"[TrainingDB.fetch_workouts_by_date] {e}", exc_info=True)
             return []
 
     def fetch_runs_by_date(self, date: str):
@@ -181,7 +196,8 @@ class TrainingDB:
                 .lte("log_ts", f"{date}T23:59:59")\
                 .execute()
             return response.data
-        except Exception:
+        except Exception as e:
+            logger.error(f"[TrainingDB.fetch_runs_by_date] {e}", exc_info=True)
             return []
 
     def fetch_nutrition_by_date(self, date: str):
@@ -193,7 +209,8 @@ class TrainingDB:
                 .lte("log_ts", f"{date}T23:59:59")\
                 .execute()
             return response.data
-        except Exception:
+        except Exception as e:
+            logger.error(f"[TrainingDB.fetch_nutrition_by_date] {e}", exc_info=True)
             return []
 
     def fetch_weight_by_date(self, date: str):
@@ -205,7 +222,8 @@ class TrainingDB:
                 .lte("log_ts", f"{date}T23:59:59")\
                 .execute()
             return response.data
-        except Exception:
+        except Exception as e:
+            logger.error(f"[TrainingDB.fetch_weight_by_date] {e}", exc_info=True)
             return []
 
     def save_draft(self, form_key: str, data: dict):
@@ -216,7 +234,8 @@ class TrainingDB:
                 on_conflict="form_key"
             ).execute()
             return response.data
-        except Exception:
+        except Exception as e:
+            logger.error(f"[TrainingDB.save_draft] {e}", exc_info=True)
             return None
 
     def load_draft(self, form_key: str):
@@ -226,7 +245,8 @@ class TrainingDB:
             if response.data and len(response.data) > 0:
                 return response.data[0]["data"]
             return None
-        except Exception:
+        except Exception as e:
+            logger.error(f"[TrainingDB.load_draft] {e}", exc_info=True)
             return None
 
     def clear_draft(self, form_key: str):
@@ -234,7 +254,8 @@ class TrainingDB:
         try:
             response = self.supabase.table("drafts").delete().eq("form_key", form_key).execute()
             return response.data
-        except Exception:
+        except Exception as e:
+            logger.error(f"[TrainingDB.clear_draft] {e}", exc_info=True)
             return None
 
     # --- DUPLICATE DETECTION ---
@@ -251,7 +272,8 @@ class TrainingDB:
                 .execute()
             )
             return response.count or 0
-        except Exception:
+        except Exception as e:
+            logger.error(f"[TrainingDB.check_duplicate_workout] {e}", exc_info=True)
             return 0
 
     def check_duplicate_run(self, date: str) -> int:
@@ -266,7 +288,8 @@ class TrainingDB:
                 .execute()
             )
             return response.count or 0
-        except Exception:
+        except Exception as e:
+            logger.error(f"[TrainingDB.check_duplicate_run] {e}", exc_info=True)
             return 0
 
     def check_duplicate_nutrition(self, date: str) -> int:
@@ -281,7 +304,8 @@ class TrainingDB:
                 .execute()
             )
             return response.count or 0
-        except Exception:
+        except Exception as e:
+            logger.error(f"[TrainingDB.check_duplicate_nutrition] {e}", exc_info=True)
             return 0
 
     def check_duplicate_weight(self, date: str) -> int:
@@ -296,7 +320,8 @@ class TrainingDB:
                 .execute()
             )
             return response.count or 0
-        except Exception:
+        except Exception as e:
+            logger.error(f"[TrainingDB.check_duplicate_weight] {e}", exc_info=True)
             return 0
 
     # --- DELETE BY DATE (OVERWRITE) ---
@@ -310,7 +335,9 @@ class TrainingDB:
                 .execute()
             st.cache_data.clear()
             return response
-        except Exception:
+        except Exception as e:
+            logger.error(f"[TrainingDB.delete_workouts_by_date] {e}", exc_info=True)
+            st.error("Failed to delete workouts by date.")
             return None
 
     def delete_runs_by_date(self, date: str):
@@ -322,7 +349,9 @@ class TrainingDB:
                 .execute()
             st.cache_data.clear()
             return response
-        except Exception:
+        except Exception as e:
+            logger.error(f"[TrainingDB.delete_runs_by_date] {e}", exc_info=True)
+            st.error("Failed to delete runs.")
             return None
 
     def delete_nutrition_by_date(self, date: str):
@@ -334,7 +363,9 @@ class TrainingDB:
                 .execute()
             st.cache_data.clear()
             return response
-        except Exception:
+        except Exception as e:
+            logger.error(f"[TrainingDB.delete_nutrition_by_date] {e}", exc_info=True)
+            st.error("Failed to delete nutrition entries.")
             return None
 
     def delete_weight_by_date(self, date: str):
@@ -346,7 +377,9 @@ class TrainingDB:
                 .execute()
             st.cache_data.clear()
             return response
-        except Exception:
+        except Exception as e:
+            logger.error(f"[TrainingDB.delete_weight_by_date] {e}", exc_info=True)
+            st.error("Failed to delete weight entry.")
             return None
 
     # --- DELETE BY ID ---
@@ -357,7 +390,9 @@ class TrainingDB:
             response = self.supabase.table("workouts").delete().eq("id", entry_id).execute()
             st.cache_data.clear()
             return response
-        except Exception:
+        except Exception as e:
+            logger.error(f"[TrainingDB.delete_workout_by_id] {e}", exc_info=True)
+            st.error("Failed to delete workout entry.")
             return None
 
     def delete_run_by_id(self, entry_id: str):
@@ -366,7 +401,9 @@ class TrainingDB:
             response = self.supabase.table("running").delete().eq("id", entry_id).execute()
             st.cache_data.clear()
             return response
-        except Exception:
+        except Exception as e:
+            logger.error(f"[TrainingDB.delete_run_by_id] {e}", exc_info=True)
+            st.error("Failed to delete run entry.")
             return None
 
     def delete_nutrition_by_id(self, entry_id: str):
@@ -375,7 +412,9 @@ class TrainingDB:
             response = self.supabase.table("nutrition").delete().eq("id", entry_id).execute()
             st.cache_data.clear()
             return response
-        except Exception:
+        except Exception as e:
+            logger.error(f"[TrainingDB.delete_nutrition_by_id] {e}", exc_info=True)
+            st.error("Failed to delete nutrition entry.")
             return None
 
     def delete_weight_by_id(self, entry_id: str):
@@ -384,7 +423,9 @@ class TrainingDB:
             response = self.supabase.table("weight").delete().eq("id", entry_id).execute()
             st.cache_data.clear()
             return response
-        except Exception:
+        except Exception as e:
+            logger.error(f"[TrainingDB.delete_weight_by_id] {e}", exc_info=True)
+            st.error("Failed to delete weight entry.")
             return None
 
     # --- SESSION HISTORY ---
@@ -445,7 +486,8 @@ class TrainingDB:
                     "date": latest_date
                 })
             return grouped
-        except Exception:
+        except Exception as e:
+            logger.error(f"[TrainingDB.fetch_last_session_by_plan] {e}", exc_info=True)
             return {}
 
     # --- WELLNESS ---
@@ -462,7 +504,8 @@ class TrainingDB:
                 .execute()
             )
             return response.data
-        except Exception:
+        except Exception as e:
+            logger.error(f"[TrainingDB.fetch_wellness] {e}", exc_info=True)
             return []
 
     def fetch_wellness_by_date(self, log_date: str):
@@ -477,7 +520,8 @@ class TrainingDB:
                 .execute()
             )
             return response.data[0] if response.data else None
-        except Exception:
+        except Exception as e:
+            logger.error(f"[TrainingDB.fetch_wellness_by_date] {e}", exc_info=True)
             return None
 
     def fetch_profile(self) -> dict | None:
@@ -488,7 +532,8 @@ class TrainingDB:
             if response.data:
                 return response.data[0]
             return None
-        except Exception:
+        except Exception as e:
+            logger.error(f"[TrainingDB.fetch_profile] {e}", exc_info=True)
             return None
 
     def save_profile(self, profile_data: dict) -> bool:
@@ -505,7 +550,9 @@ class TrainingDB:
                 self.supabase.table("user_profile").insert(profile_data).execute()
             st.cache_data.clear()
             return True
-        except Exception:
+        except Exception as e:
+            logger.error(f"[TrainingDB.save_profile] {e}", exc_info=True)
+            st.error("Failed to save profile.")
             return False
 
     def save_wellness(self, payload: dict) -> bool:
@@ -515,7 +562,9 @@ class TrainingDB:
             self.supabase.table("wellness").upsert(payload, on_conflict="log_date").execute()
             st.cache_data.clear()
             return True
-        except Exception:
+        except Exception as e:
+            logger.error(f"[TrainingDB.save_wellness] {e}", exc_info=True)
+            st.error("Failed to save wellness data.")
             return False
 
 @st.cache_resource
@@ -532,6 +581,11 @@ def fetch_profile_cached(_db):
 def fetch_workouts_cached(_db):
     """Cached wrapper for fetch_workouts(). TTL=60s."""
     return _db.fetch_workouts()
+
+@st.cache_data(ttl=60)
+def fetch_runs_cached(_db):
+    """Cached wrapper for fetch_runs(). TTL=60s."""
+    return _db.fetch_runs()
 
 @st.cache_data(ttl=60)
 def fetch_nutrition_cached(_db):
@@ -569,4 +623,3 @@ def fetch_today_summary_cached(_db, target_date_str):
         "nut": _db.fetch_nutrition_by_date(target_date_str),
         "weight": _db.fetch_weight_by_date(target_date_str)
     }
-

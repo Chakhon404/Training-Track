@@ -8,7 +8,7 @@ import streamlit.components.v1 as components
 # --- PAGE CONFIG ---
 st.set_page_config(
     page_title="Training Track",
-    page_icon="🎯",
+    page_icon="T",
     layout="wide",
     initial_sidebar_state="expanded"
 )
@@ -309,15 +309,15 @@ def main():
         if db.is_connected():
             st.markdown("""<span style="font-size:11px;color:#3FD47A;background:rgba(63,212,122,0.1);
             border:0.5px solid rgba(63,212,122,0.2);padding:4px 10px;border-radius:20px;">
-            ● Database Online</span>""", unsafe_allow_html=True)
+            Database Online</span>""", unsafe_allow_html=True)
         else:
             st.markdown("""<span style="font-size:11px;color:#F13568;background:rgba(241,53,104,0.1);
             border:0.5px solid rgba(241,53,104,0.2);padding:4px 10px;border-radius:20px;">
-            ● Database Offline</span>""", unsafe_allow_html=True)
+            Database Offline</span>""", unsafe_allow_html=True)
         
         st.write("") # Spacer
 
-        if st.button("🔄 Refresh Data"):
+        if st.button("Refresh Data"):
             for key in [
                 "work_draft_loaded", "run_draft_loaded", "nut_draft_loaded", "weight_draft_loaded",
                 "workout_show_confirm", "run_show_confirm", "nut_show_confirm", "weight_show_confirm",
@@ -330,9 +330,9 @@ def main():
             
         st.divider()
         if db.is_connected():
-            show_history = st.toggle("📊 Open Exercise History", value=False)
-            show_plan_builder = st.toggle("🛠️ Open Plan Builder", value=False)
-            show_profile = st.toggle("👤 Edit Profile & Goals", value=False)
+            show_history = st.toggle("Open Exercise History", value=False)
+            show_plan_builder = st.toggle("Open Plan Builder", value=False)
+            show_profile = st.toggle("Edit Profile & Goals", value=False)
         else:
             show_history = False
             show_plan_builder = False
@@ -358,7 +358,7 @@ def main():
         st.stop()
 
     # --- NAVIGATION ---
-    tabs = st.tabs(["🏠 Overview", "🏋️ Training", "🏃 Movement", "⚖️ Weight", "🍱 Nutrition", "🗂️ Data"])
+    tabs = st.tabs(["Overview", "Training", "Movement", "Weight", "Nutrition", "Data"])
 
     with tabs[0]:
         render_overview()
