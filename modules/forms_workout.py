@@ -527,14 +527,15 @@ def render_workout_form():
             st.session_state[f"work_nsets_{i}"] += 1
             st.rerun()
 
-        # --- Restore RPE Slider ---
+        # --- Restore RPE (as Number Input for better Mobile UX) ---
         if f"work_rpe_{i}" not in st.session_state:
             st.session_state[f"work_rpe_{i}"] = 7.0
 
-        st.slider(
+        st.number_input(
             "RPE (Rate of Perceived Exertion)", 
             min_value=1.0, 
             max_value=10.0, 
+            value=float(st.session_state.get(f"work_rpe_{i}", 7.0)),
             step=0.5, 
             key=f"work_rpe_{i}", 
             on_change=save_workout_draft
