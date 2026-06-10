@@ -450,28 +450,25 @@ def render_overview():
 
     st.divider()
 
-    # Section C — Nutrition Detail Card
+    # Section C — Nutrition Detail Card (pure HTML)
     if not nut_today.empty:
-        st.markdown("""
-        <div style="background:#141417;border:0.5px solid rgba(255,255,255,0.07);border-radius:12px;padding:16px 20px;margin-bottom:12px;">
-            <div style="font-family:Syne;font-size:12px;font-weight:700;color:#444440;letter-spacing:0.12em;text-transform:uppercase;margin-bottom:12px;">Today's Nutrition</div>
-        """, unsafe_allow_html=True)
-        
         prot_total = int(nut_today['protein_g'].sum())
         carb_total = int(nut_today['carbs_g'].sum())
         fat_total  = int(nut_today['fat_g'].sum())
-        
-        m1, m2, m3 = st.columns(3)
-        m1.metric("Protein", f"{prot_total}g", delta=f"{prot_total - GOAL_PROTEIN}g vs Goal")
-        m2.metric("Carbs", f"{carb_total}g")
-        m3.metric("Fat", f"{fat_total}g")
-        
-        st.divider()
-        
-        # Dynamic Supplement Status
+
+        GOAL_CARBS = profile.get("goal_carbs_g") or 300
+        GOAL_FAT   = profile.get("goal_fat_g") or 70
+
+        def _delta_html(val, goal, unit="g"):
+            diff = val - goal
+            color = "#C8F135" if diff >= 0 else "#F13568"
+            sign  = "+" if diff >= 0 else ""
+            return f'<span style="font-size:11px;color:{color};">{sign}{diff}{unit}</span>'
+
         default_sups = profile.get("default_supplements") or []
+        pills_html = ""
         if default_sups:
-            pills_html = '<div style="display:flex;flex-wrap:wrap;gap:8px;">'
+            pills_html = '<div style="display:flex;flex-wrap:wrap;gap:6px;margin-top:14px;padding-top:14px;border-top:0.5px solid rgba(255,255,255,0.07);">'
             for sup_key in default_sups:
                 if sup_key in SUPPLEMENT_MAP:
                     display, _, db_col = SUPPLEMENT_MAP[sup_key]
@@ -481,9 +478,44 @@ def render_overview():
                     else:
                         pills_html += f'<div style="background:#1A1A1F;border:0.5px solid rgba(255,255,255,0.07);color:#444440;padding:4px 12px;border-radius:20px;font-size:11px;font-family:DM Sans;font-weight:500;">{display}</div>'
             pills_html += '</div>'
-            st.markdown(pills_html, unsafe_allow_html=True)
-        
-        st.markdown("</div>", unsafe_allow_html=True)
+
+        st.markdown(f"""
+        <div style="background:#141417;border:0.5px solid rgba(255,255,255,0.07);
+        border-radius:12px;padding:16px 20px;margin-bottom:12px;">
+            <div style="font-family:Syne;font-size:12px;font-weight:700;color:#444440;
+            letter-spacing:0.12em;text-transform:uppercase;margin-bottom:14px;">Today's Nutrition</div>
+            <div style="display:grid;grid-template-columns:repeat(3,1fr);gap:10px;">
+                <div style="background:#1A1A1F;border:0.5px solid rgba(255,255,255,0.06);
+                border-radius:8px;padding:12px 14px;">
+                    <div style="font-size:10px;color:#888880;text-transform:uppercase;
+                    letter-spacing:0.06em;margin-bottom:6px;font-family:DM Sans;">Protein</div>
+                    <div style="font-family:Syne;font-size:22px;font-weight:800;
+                    color:#F0EFE8;letter-spacing:-0.03em;">{prot_total}<span style="font-size:13px;
+                    color:#888880;font-weight:400;">g</span></div>
+                    <div style="margin-top:4px;">{_delta_html(prot_total, GOAL_PROTEIN)}</div>
+                </div>
+                <div style="background:#1A1A1F;border:0.5px solid rgba(255,255,255,0.06);
+                border-radius:8px;padding:12px 14px;">
+                    <div style="font-size:10px;color:#888880;text-transform:uppercase;
+                    letter-spacing:0.06em;margin-bottom:6px;font-family:DM Sans;">Carbs</div>
+                    <div style="font-family:Syne;font-size:22px;font-weight:800;
+                    color:#F0EFE8;letter-spacing:-0.03em;">{carb_total}<span style="font-size:13px;
+                    color:#888880;font-weight:400;">g</span></div>
+                    <div style="margin-top:4px;">{_delta_html(carb_total, GOAL_CARBS)}</div>
+                </div>
+                <div style="background:#1A1A1F;border:0.5px solid rgba(255,255,255,0.06);
+                border-radius:8px;padding:12px 14px;">
+                    <div style="font-size:10px;color:#888880;text-transform:uppercase;
+                    letter-spacing:0.06em;margin-bottom:6px;font-family:DM Sans;">Fat</div>
+                    <div style="font-family:Syne;font-size:22px;font-weight:800;
+                    color:#F0EFE8;letter-spacing:-0.03em;">{fat_total}<span style="font-size:13px;
+                    color:#888880;font-weight:400;">g</span></div>
+                    <div style="margin-top:4px;">{_delta_html(fat_total, GOAL_FAT)}</div>
+                </div>
+            </div>
+            {pills_html}
+        </div>
+        """, unsafe_allow_html=True)
     else:
         st.info("No nutrition logged today.")
 
