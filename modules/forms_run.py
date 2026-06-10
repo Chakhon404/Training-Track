@@ -16,7 +16,7 @@ def render_running_form():
     if "run_draft_loaded" not in st.session_state:
         draft = db.load_draft(form_key) or {}
         _bkk = pytz.timezone("Asia/Bangkok")
-        _now = datetime.now(_bkk)
+        _now = datetime.now(_bkk).replace(microsecond=0)
         st.session_state.run_date = _now.date()
         st.session_state.run_time = _now.time().replace(tzinfo=None)
         st.session_state.run_cat = draft.get("cat", "Easy")
@@ -46,7 +46,7 @@ def render_running_form():
     # --- Standardized Widget Initialization ---
     if "run_date" not in st.session_state or "run_time" not in st.session_state:
         _bkk = pytz.timezone("Asia/Bangkok")
-        _now = datetime.now(_bkk)
+        _now = datetime.now(_bkk).replace(microsecond=0)
         if "run_date" not in st.session_state:
             st.session_state.run_date = _now.date()
         if "run_time" not in st.session_state:

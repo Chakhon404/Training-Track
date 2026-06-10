@@ -465,12 +465,25 @@ def render_overview():
         prot_total = int(nut_today['protein_g'].sum())
         carb_total = int(nut_today['carbs_g'].sum())
         fat_total  = int(nut_today['fat_g'].sum())
-        
-        m1, m2, m3 = st.columns(3)
-        m1.metric("Protein", f"{prot_total}g", delta=f"{prot_total - GOAL_PROTEIN}g vs Goal")
-        m2.metric("Carbs", f"{carb_total}g")
-        m3.metric("Fat", f"{fat_total}g")
-        
+
+        st.markdown(f"""
+        <div class="mobile-grid-3">
+            <div>
+                <div style="font-size:10px;color:#888880;text-transform:uppercase;letter-spacing:0.04em;margin-bottom:4px;">Protein</div>
+                <div style="font-family:Syne;font-size:20px;font-weight:700;color:#F0EFE8;">{prot_total}g</div>
+                <div style="font-size:11px;color:{'#C8F135' if prot_total >= GOAL_PROTEIN else '#F13568'};margin-top:2px;">{prot_total - GOAL_PROTEIN:+}g vs Goal</div>
+            </div>
+            <div>
+                <div style="font-size:10px;color:#888880;text-transform:uppercase;letter-spacing:0.04em;margin-bottom:4px;">Carbs</div>
+                <div style="font-family:Syne;font-size:20px;font-weight:700;color:#F0EFE8;">{carb_total}g</div>
+            </div>
+            <div>
+                <div style="font-size:10px;color:#888880;text-transform:uppercase;letter-spacing:0.04em;margin-bottom:4px;">Fat</div>
+                <div style="font-family:Syne;font-size:20px;font-weight:700;color:#F0EFE8;">{fat_total}g</div>
+            </div>
+        </div>
+        """, unsafe_allow_html=True)
+
         st.divider()
         
         # Dynamic Supplement Status
@@ -501,11 +514,26 @@ def render_overview():
             st.markdown('<div style="font-family:Syne;font-size:12px;font-weight:700;color:#444440;letter-spacing:0.12em;text-transform:uppercase;margin-bottom:12px;">Today\'s Movement</div>', unsafe_allow_html=True)
             # Show latest run details
             last_run = run_today.iloc[-1]
-            r1, r2, r3, r4 = st.columns(4)
-            r1.metric("Distance", f"{last_run['distance']} km")
-            r2.metric("Duration", f"{last_run['duration']}")
-            r3.metric("Pace", f"{last_run['pace']} /km")
-            r4.metric("Avg HR", f"{last_run['hr']} bpm")
+            st.markdown(f"""
+            <div class="mobile-grid-2x2">
+                <div>
+                    <div style="font-size:10px;color:#888880;text-transform:uppercase;letter-spacing:0.04em;margin-bottom:4px;">Distance</div>
+                    <div style="font-family:Syne;font-size:20px;font-weight:700;color:#F0EFE8;">{last_run['distance']} km</div>
+                </div>
+                <div>
+                    <div style="font-size:10px;color:#888880;text-transform:uppercase;letter-spacing:0.04em;margin-bottom:4px;">Duration</div>
+                    <div style="font-family:Syne;font-size:20px;font-weight:700;color:#F0EFE8;">{last_run['duration']}</div>
+                </div>
+                <div>
+                    <div style="font-size:10px;color:#888880;text-transform:uppercase;letter-spacing:0.04em;margin-bottom:4px;">Pace</div>
+                    <div style="font-family:Syne;font-size:20px;font-weight:700;color:#F0EFE8;">{last_run['pace']} /km</div>
+                </div>
+                <div>
+                    <div style="font-size:10px;color:#888880;text-transform:uppercase;letter-spacing:0.04em;margin-bottom:4px;">Avg HR</div>
+                    <div style="font-family:Syne;font-size:20px;font-weight:700;color:#F0EFE8;">{last_run['hr']} bpm</div>
+                </div>
+            </div>
+            """, unsafe_allow_html=True)
     else:
         st.info("No movement logged today.")
 

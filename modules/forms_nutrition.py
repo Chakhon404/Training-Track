@@ -84,7 +84,7 @@ def render_biohack_form():
     if "nut_draft_loaded" not in st.session_state:
         draft = db.load_draft(form_key) or {}
         _bkk = pytz.timezone("Asia/Bangkok")
-        _now = datetime.now(_bkk)
+        _now = datetime.now(_bkk).replace(microsecond=0)
         st.session_state.nut_date = _now.date()
         st.session_state.nut_time = _now.time().replace(tzinfo=None)
         
@@ -124,7 +124,7 @@ def render_biohack_form():
     # --- Standardized Widget Initialization ---
     if "nut_date" not in st.session_state or "nut_time" not in st.session_state:
         _bkk = pytz.timezone("Asia/Bangkok")
-        _now = datetime.now(_bkk)
+        _now = datetime.now(_bkk).replace(microsecond=0)
         if "nut_date" not in st.session_state:
             st.session_state.nut_date = _now.date()
         if "nut_time" not in st.session_state:

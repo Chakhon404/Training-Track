@@ -25,6 +25,7 @@ class TrainingDB:
             return response.data
         except Exception as e:
             logger.error(f"[TrainingDB.fetch_plans] {e}", exc_info=True)
+            st.error("Failed to fetch plans. Check your connection.")
             return []
 
     def add_plan(self, plan_data):

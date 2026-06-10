@@ -285,6 +285,36 @@ def main():
         ::-webkit-scrollbar-thumb:hover {
             background: rgba(200,241,53,0.3);
         }
+
+        .mobile-grid-3 {
+            display: grid;
+            grid-template-columns: repeat(3, 1fr);
+            gap: 12px;
+        }
+
+        .mobile-grid-2x2 {
+            display: grid;
+            grid-template-columns: repeat(2, 1fr);
+            gap: 16px 12px;
+        }
+
+        .flex-between {
+            display: flex;
+            justify-content: space-between;
+            align-items: flex-end;
+            margin-bottom: 16px;
+            padding-bottom: 16px;
+            border-bottom: 0.5px solid rgba(255,255,255,0.07);
+        }
+
+        @media (max-width: 768px) {
+            .mobile-grid-3 {
+                gap: 8px;
+            }
+            .mobile-grid-3 > div > div:nth-child(2) {
+                font-size: 20px !important;
+            }
+        }
     </style>
     """, unsafe_allow_html=True)
 

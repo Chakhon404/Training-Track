@@ -216,7 +216,7 @@ def render_workout_form():
     if "work_draft_loaded" not in st.session_state:
         draft = db.load_draft(form_key) or {}
         _bkk = pytz.timezone("Asia/Bangkok")
-        _now = datetime.now(_bkk)
+        _now = datetime.now(_bkk).replace(microsecond=0)
         st.session_state.work_date = _now.date()
         st.session_state.work_time = _now.time().replace(tzinfo=None)
         
@@ -252,7 +252,7 @@ def render_workout_form():
     # --- Standardized Widget Initialization ---
     if "work_date" not in st.session_state or "work_time" not in st.session_state:
         _bkk = pytz.timezone("Asia/Bangkok")
-        _now = datetime.now(_bkk)
+        _now = datetime.now(_bkk).replace(microsecond=0)
         if "work_date" not in st.session_state:
             st.session_state.work_date = _now.date()
         if "work_time" not in st.session_state:
@@ -640,18 +640,19 @@ def render_today_training_summary():
     avg_rpe      = df['rpe'].mean()
 
     st.markdown(f"""
-    <div style="margin-bottom:12px;">
-      <div style="font-size:10px;color:#888880;font-family:DM Sans;
-      text-transform:uppercase;letter-spacing:0.1em;margin-bottom:4px;">
-      Total Volume</div>
-      <div style="font-family:Syne;font-size:32px;font-weight:800;
-      color:#C8F135;letter-spacing:-0.04em;line-height:1;">
-      {total_volume:,.0f}
-      <span style="font-size:14px;color:#888880;font-weight:300;">kg</span>
+    <div class="flex-between">
+      <div>
+        <div style="font-size:10px;color:#888880;font-family:DM Sans;text-transform:uppercase;letter-spacing:0.1em;margin-bottom:4px;">Total Volume</div>
+        <div style="font-family:Syne;font-size:32px;font-weight:800;color:#C8F135;letter-spacing:-0.04em;line-height:1;">
+          {total_volume:,.0f} <span style="font-size:14px;color:#888880;font-weight:300;">kg</span>
+        </div>
       </div>
-    </div>""", unsafe_allow_html=True)
-    
-    st.markdown(f'<div style="font-family:DM Sans;font-size:13px;color:#888880;margin-bottom:12px;">Avg RPE: <span style="color:#F0EFE8;font-weight:500;">{avg_rpe:.1f}</span></div>', unsafe_allow_html=True)
+      <div style="text-align:right;">
+        <div style="font-size:10px;color:#888880;font-family:DM Sans;text-transform:uppercase;letter-spacing:0.1em;margin-bottom:4px;">Avg RPE</div>
+        <div style="font-family:Syne;font-size:24px;font-weight:700;color:#F0EFE8;">{avg_rpe:.1f}</div>
+      </div>
+    </div>
+    """, unsafe_allow_html=True)
 
     st.divider()
 

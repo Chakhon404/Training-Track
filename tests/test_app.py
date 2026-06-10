@@ -20,10 +20,10 @@ def test_handle_pending_confirmations_fallback_bodyweight(mock_st):
         "work_date": "2026-05-11",
         "work_time": datetime.strptime("10:00:00", "%H:%M:%S"),
         # bodyweight_kg is missing
-        "work_s_0": 3,
-        "work_r_0": 10,
-        "work_d_0": 0,
-        "work_w_0": 0.0,
+        "work_nsets_0": 1,
+        "work_r_0_0": 30,
+        "work_d_0_0": 0,
+        "work_w_0_0": 0.0,
         "work_rpe_0": 7.0,
     }
 

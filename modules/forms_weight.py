@@ -17,7 +17,7 @@ def render_weight_form():
     if "weight_draft_loaded" not in st.session_state:
         draft = db.load_draft(form_key) or {}
         _bkk = pytz.timezone("Asia/Bangkok")
-        _now = datetime.now(_bkk)
+        _now = datetime.now(_bkk).replace(microsecond=0)
         st.session_state.weight_date = _now.date()
         st.session_state.weight_time = _now.time().replace(tzinfo=None)
         st.session_state.weight_kg = draft.get("weight_kg", 0.0)
@@ -28,7 +28,7 @@ def render_weight_form():
     # --- Standardized Widget Initialization ---
     if "weight_date" not in st.session_state or "weight_time" not in st.session_state:
         _bkk = pytz.timezone("Asia/Bangkok")
-        _now = datetime.now(_bkk)
+        _now = datetime.now(_bkk).replace(microsecond=0)
         if "weight_date" not in st.session_state:
             st.session_state.weight_date = _now.date()
         if "weight_time" not in st.session_state:
