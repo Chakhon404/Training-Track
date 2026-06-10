@@ -226,7 +226,17 @@ def render_workout_form():
         dyn_fields = draft.get("exercises", {})
         for k, v in dyn_fields.items():
             if v is not None:
-                if "_w_" in k:
+                if "date" in k and isinstance(v, str):
+                    try:
+                        st.session_state[k] = datetime.strptime(v, "%Y-%m-%d").date()
+                    except ValueError:
+                        pass
+                elif "time" in k and isinstance(v, str):
+                    try:
+                        st.session_state[k] = datetime.strptime(v, "%H:%M:%S").time()
+                    except ValueError:
+                        pass
+                elif "_w_" in k:
                     st.session_state[k] = float(v)
                 elif "_r_" in k or "_d_" in k or "_nsets_" in k:
                     st.session_state[k] = int(v)
@@ -438,6 +448,14 @@ def render_workout_form():
         nsets = st.session_state[f"work_nsets_{i}"]
         
         for s in range(nsets):
+            # If expanding sets beyond history, initialize missing keys with STRICT types
+            if f"work_w_{i}_{s}" not in st.session_state:
+                st.session_state[f"work_w_{i}_{s}"] = 0.0 # STRICT FLOAT for step=0.5
+            if f"work_r_{i}_{s}" not in st.session_state:
+                st.session_state[f"work_r_{i}_{s}"] = 0   # STRICT INT for step=1
+            if f"work_d_{i}_{s}" not in st.session_state:
+                st.session_state[f"work_d_{i}_{s}"] = 0   # STRICT INT for step=1
+
             # Checkbox state for "Done"
             is_done = st.session_state.get(f"work_done_{i}_{s}", False)
             # Set label with inline done indicator — no dynamic CSS injection

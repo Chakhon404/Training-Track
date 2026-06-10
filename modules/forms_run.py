@@ -17,13 +17,29 @@ def render_running_form():
         draft = db.load_draft(form_key) or {}
         _bkk = pytz.timezone("Asia/Bangkok")
         _now = datetime.now(_bkk).replace(microsecond=0)
-        st.session_state.run_date = _now.date()
-        st.session_state.run_time = _now.time().replace(tzinfo=None)
+        
+        # Load date/time from draft if present, else default to now
+        if "date" in draft and isinstance(draft["date"], str):
+            try:
+                st.session_state.run_date = datetime.strptime(draft["date"], "%Y-%m-%d").date()
+            except ValueError:
+                st.session_state.run_date = _now.date()
+        else:
+            st.session_state.run_date = _now.date()
+
+        if "time" in draft and isinstance(draft["time"], str):
+            try:
+                st.session_state.run_time = datetime.strptime(draft["time"], "%H:%M:%S").time()
+            except ValueError:
+                st.session_state.run_time = _now.time().replace(tzinfo=None)
+        else:
+            st.session_state.run_time = _now.time().replace(tzinfo=None)
+            
         st.session_state.run_cat = draft.get("cat", "Easy")
-        st.session_state.run_dist = draft.get("dist", 0.0)
+        st.session_state.run_dist = float(draft.get("dist", 0.0))
         st.session_state.run_dur = draft.get("dur", "00:00")
-        st.session_state.run_hr = draft.get("hr", 0)
-        st.session_state.run_hrr = draft.get("hrr", 0)
+        st.session_state.run_hr = int(draft.get("hr", 0))
+        st.session_state.run_hrr = int(draft.get("hrr", 0))
         st.session_state.run_draft_loaded = True
 
     def save_run_draft():
@@ -34,6 +50,8 @@ def render_running_form():
             return
 
         data = {
+            "date": str(st.session_state.run_date),
+            "time": st.session_state.run_time.strftime("%H:%M:%S") if hasattr(st.session_state.run_time, "strftime") else str(st.session_state.run_time),
             "cat": st.session_state.run_cat,
             "dist": st.session_state.run_dist,
             "dur": st.session_state.run_dur,

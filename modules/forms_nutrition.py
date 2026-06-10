@@ -85,8 +85,23 @@ def render_biohack_form():
         draft = db.load_draft(form_key) or {}
         _bkk = pytz.timezone("Asia/Bangkok")
         _now = datetime.now(_bkk).replace(microsecond=0)
-        st.session_state.nut_date = _now.date()
-        st.session_state.nut_time = _now.time().replace(tzinfo=None)
+        
+        # Load date/time from draft if present, else default to now
+        if "date" in draft and isinstance(draft["date"], str):
+            try:
+                st.session_state.nut_date = datetime.strptime(draft["date"], "%Y-%m-%d").date()
+            except ValueError:
+                st.session_state.nut_date = _now.date()
+        else:
+            st.session_state.nut_date = _now.date()
+
+        if "time" in draft and isinstance(draft["time"], str):
+            try:
+                st.session_state.nut_time = datetime.strptime(draft["time"], "%H:%M:%S").time()
+            except ValueError:
+                st.session_state.nut_time = _now.time().replace(tzinfo=None)
+        else:
+            st.session_state.nut_time = _now.time().replace(tzinfo=None)
         
         # food_name
         st.session_state.nut_food_name = draft.get("food_name", "")

@@ -18,10 +18,26 @@ def render_weight_form():
         draft = db.load_draft(form_key) or {}
         _bkk = pytz.timezone("Asia/Bangkok")
         _now = datetime.now(_bkk).replace(microsecond=0)
-        st.session_state.weight_date = _now.date()
-        st.session_state.weight_time = _now.time().replace(tzinfo=None)
-        st.session_state.weight_kg = draft.get("weight_kg", 0.0)
-        st.session_state.weight_bf = draft.get("weight_bf", 0.0)
+        
+        # Load date/time from draft if present, else default to now
+        if "date" in draft and isinstance(draft["date"], str):
+            try:
+                st.session_state.weight_date = datetime.strptime(draft["date"], "%Y-%m-%d").date()
+            except ValueError:
+                st.session_state.weight_date = _now.date()
+        else:
+            st.session_state.weight_date = _now.date()
+
+        if "time" in draft and isinstance(draft["time"], str):
+            try:
+                st.session_state.weight_time = datetime.strptime(draft["time"], "%H:%M:%S").time()
+            except ValueError:
+                st.session_state.weight_time = _now.time().replace(tzinfo=None)
+        else:
+            st.session_state.weight_time = _now.time().replace(tzinfo=None)
+            
+        st.session_state.weight_kg = float(draft.get("weight_kg", 0.0))
+        st.session_state.weight_bf = float(draft.get("weight_bf", 0.0))
         st.session_state.weight_notes = draft.get("weight_notes", "")
         st.session_state.weight_draft_loaded = True
 
