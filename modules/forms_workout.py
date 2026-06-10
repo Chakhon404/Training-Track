@@ -236,7 +236,7 @@ def render_workout_form():
                         st.session_state[k] = datetime.strptime(v, "%H:%M:%S").time()
                     except ValueError:
                         pass
-                elif "_w_" in k:
+                elif "_w_" in k or "_rpe_" in k:
                     st.session_state[k] = float(v)
                 elif "_r_" in k or "_d_" in k or "_nsets_" in k:
                     st.session_state[k] = int(v)
@@ -526,6 +526,20 @@ def render_workout_form():
         if st.button(f"Add Set", key=f"add_set_{i}"):
             st.session_state[f"work_nsets_{i}"] += 1
             st.rerun()
+
+        # --- Restore RPE Slider ---
+        if f"work_rpe_{i}" not in st.session_state:
+            st.session_state[f"work_rpe_{i}"] = 7.0
+
+        st.slider(
+            "RPE (Rate of Perceived Exertion)", 
+            min_value=1.0, 
+            max_value=10.0, 
+            step=0.5, 
+            key=f"work_rpe_{i}", 
+            on_change=save_workout_draft
+        )
+        st.markdown("<div style='margin-bottom: 24px;'></div>", unsafe_allow_html=True)
 
     st.markdown("""<style>
     div:has(> button[key="save_workout_btn"]) > button {
