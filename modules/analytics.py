@@ -170,7 +170,7 @@ def render_analytics():
             else:
                 _bkk = pytz.timezone("Asia/Bangkok")
                 if db.save_weight({
-                    "log_ts": datetime.combine(w_date, datetime.now(_bkk).time().replace(tzinfo=None)).isoformat(),
+                    "log_ts": datetime.combine(w_date, datetime.now(_bkk).replace(microsecond=0).time().replace(tzinfo=None)).isoformat(),
                     "weight": today_w,
                     "body_fat_pct": today_bf,
                     "notes": notes

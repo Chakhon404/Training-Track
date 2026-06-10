@@ -225,7 +225,13 @@ def render_workout_form():
         
         dyn_fields = draft.get("exercises", {})
         for k, v in dyn_fields.items():
-            st.session_state[k] = v
+            if v is not None:
+                if "_w_" in k:
+                    st.session_state[k] = float(v)
+                elif "_r_" in k or "_d_" in k or "_nsets_" in k:
+                    st.session_state[k] = int(v)
+                else:
+                    st.session_state[k] = v
 
         if not draft:
             _last = db.fetch_last_session_by_plan(
@@ -312,18 +318,23 @@ def render_workout_form():
                 st.session_state[f"work_nsets_{i}"] = len(history_sets)
             
             for s, hset in enumerate(history_sets):
+                # FORCE STRICT TYPING to prevent Streamlit React Error #185
+                prev_w = float(hset.get("weight", 0.0))
+                prev_r = int(hset.get("reps", 0))
+                prev_d = int(hset.get("duration_sec", 0))
+                
                 # Store history for PR check
-                st.session_state[f"work_last_w_{i}_{s}"] = hset["weight"]
-                st.session_state[f"work_last_r_{i}_{s}"] = hset["reps"]
-                st.session_state[f"work_last_d_{i}_{s}"] = hset["duration_sec"]
+                st.session_state[f"work_last_w_{i}_{s}"] = prev_w
+                st.session_state[f"work_last_r_{i}_{s}"] = prev_r
+                st.session_state[f"work_last_d_{i}_{s}"] = prev_d
                 
                 # Populate inputs if not set
                 if f"work_w_{i}_{s}" not in st.session_state:
-                    st.session_state[f"work_w_{i}_{s}"] = hset["weight"]
+                    st.session_state[f"work_w_{i}_{s}"] = prev_w
                 if f"work_r_{i}_{s}" not in st.session_state:
-                    st.session_state[f"work_r_{i}_{s}"] = hset["reps"]
+                    st.session_state[f"work_r_{i}_{s}"] = prev_r
                 if f"work_d_{i}_{s}" not in st.session_state:
-                    st.session_state[f"work_d_{i}_{s}"] = hset["duration_sec"]
+                    st.session_state[f"work_d_{i}_{s}"] = prev_d
         
         # Ensure nsets has a default
         if f"work_nsets_{i}" not in st.session_state:
