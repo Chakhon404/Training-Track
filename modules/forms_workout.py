@@ -5,8 +5,9 @@ import pytz
 from datetime import datetime
 from modules.database import get_db, fetch_profile_cached, fetch_workouts_cached, fetch_plans_cached, fetch_last_session_cached, fetch_today_summary_cached, fetch_weight_cached
 
-def get_timestamp(log_date, log_time):
-    return f"{log_date} {log_time.strftime('%H:%M:%S')}"
+# 1. ปรับให้รองรับ String HH:MM ทันที
+def get_timestamp(log_date, log_time_str):
+    return f"{log_date} {log_time_str}:00"
 
 def _build_workout_rows(plan_obj, session_state, log_ts, plan_name, bodyweight_kg):
     """
@@ -60,9 +61,13 @@ def _build_workout_snapshot(plan_name, plan_obj, log_date, log_time, state):
                 ex_data[f"work_w_{i}_{s}"] = state.get(f"work_w_{i}_{s}", 0.0)
                 ex_data[f"work_r_{i}_{s}"] = state.get(f"work_r_{i}_{s}", 0)
                 ex_data[f"work_d_{i}_{s}"] = state.get(f"work_d_{i}_{s}", 0)
+    
+    # รองรับการรับค่า String เวลาโดยตรง
+    time_str = f"{log_time}:00" if isinstance(log_time, str) and len(log_time) == 5 else str(log_time)
+    
     return {
         "date":      str(log_date),
-        "time":      log_time.strftime("%H:%M:%S") if hasattr(log_time, "strftime") else str(log_time),
+        "time":      time_str,
         "plan_name": plan_name,
         "exercises": ex_data,
         "_is_last_session": True
@@ -218,7 +223,7 @@ def render_workout_form():
         _bkk = pytz.timezone("Asia/Bangkok")
         _now = datetime.now(_bkk).replace(microsecond=0)
         st.session_state.work_date = _now.date()
-        st.session_state.work_time = _now.time().replace(tzinfo=None)
+        st.session_state.work_time = _now.strftime("%H:%M") # String HH:MM
         
         saved_plan = draft.get("plan_name")
         st.session_state.work_plan_name = saved_plan if saved_plan in plan_names else plan_names[0]
@@ -232,10 +237,7 @@ def render_workout_form():
                     except ValueError:
                         pass
                 elif "time" in k and isinstance(v, str):
-                    try:
-                        st.session_state[k] = datetime.strptime(v, "%H:%M:%S").time()
-                    except ValueError:
-                        pass
+                    st.session_state[k] = v[:5] # ตัดเอาแค่ String HH:MM
                 elif "_w_" in k or "_rpe_" in k:
                     st.session_state[k] = float(v)
                 elif "_r_" in k or "_d_" in k or "_nsets_" in k:
@@ -272,7 +274,7 @@ def render_workout_form():
         if "work_date" not in st.session_state:
             st.session_state.work_date = _now.date()
         if "work_time" not in st.session_state:
-            st.session_state.work_time = _now.time().replace(tzinfo=None)
+            st.session_state.work_time = _now.strftime("%H:%M")
     if "work_plan_name" not in st.session_state:
         st.session_state.work_plan_name = plan_names[0]
 
@@ -308,9 +310,25 @@ def render_workout_form():
             "plan_name": curr_plan,
             "exercises": ex_data
         }
-        # Write timestamp AFTER DB call to avoid triggering re-render in callback
         db.save_draft(form_key, data)
         st.session_state["_last_workout_draft_save"] = now
+
+    # ฟังก์ชัน Callback สำหรับปุ่ม Quick Set
+    def set_work_time_to_now():
+        _now = datetime.now(pytz.timezone("Asia/Bangkok"))
+        st.session_state.work_date = _now.date()
+        st.session_state.work_time = _now.strftime("%H:%M")
+        save_workout_draft()
+
+    # --- Row 1: จัดกลุ่ม Date, Time รูปแบบ Text, และปุ่ม Quick Set ---
+    r1_c1, r1_c2, r1_c3 = st.columns([4, 4, 2])
+    with r1_c1:
+        l_date = st.date_input("Date", key="work_date", on_change=save_workout_draft)
+    with r1_c2:
+        l_time = st.text_input("Time (HH:MM)", key="work_time", on_change=save_workout_draft)
+    with r1_c3:
+        st.markdown('<div style="font-size:14px; color:#F0EFE8; margin-bottom:8px; font-family:DM Sans;">Quick Set Time</div>', unsafe_allow_html=True)
+        st.button("Now", key="work_now_btn", use_container_width=True, on_click=set_work_time_to_now)
 
     selected_plan_name = st.selectbox("Select Training Plan", plan_names, key="work_plan_name", on_change=on_plan_change)
     selected_plan = next(p for p in plans if p['name'] == selected_plan_name)
@@ -361,12 +379,6 @@ def render_workout_form():
         bodyweight_kg = float(profile.get('weight_kg') or 0.0)
     
     st.session_state["bodyweight_kg"] = bodyweight_kg
-
-    col_d, col_t = st.columns(2)
-    with col_d:
-        l_date = st.date_input("Date", key="work_date", on_change=save_workout_draft)
-    with col_t:
-        l_time = st.time_input("Time", key="work_time", on_change=save_workout_draft)
 
     for i, ex in enumerate(selected_plan['exercises']):
         ex_n = ex['name']
@@ -554,6 +566,12 @@ def render_workout_form():
     # Step 1: on submit, check duplicate and set show_confirm flag
     if submitted:
         date_str = str(l_date)
+        
+        # ตรวจสอบรูปแบบเวลาก่อนเซฟ
+        if len(l_time) != 5 or ":" not in l_time:
+            st.error("Please enter time in HH:MM format (e.g., 08:30)")
+            return
+            
         dup_count = db.check_duplicate_workout(date_str)
         if dup_count > 0:
             st.session_state.workout_show_confirm = True
@@ -622,7 +640,8 @@ def process_pending_workout(db, session_state):
     work_time = session_state.get("work_time")
 
     if selected_plan_obj and work_date and work_time:
-        log_ts = f"{work_date} {work_time.strftime('%H:%M:%S')}"
+        # ใช้เป็น String ทันที ถอด strftime ออกเพื่อกัน Error
+        log_ts = f"{work_date} {work_time}:00"
         
         bw = session_state.get("bodyweight_kg")
         if not bw or float(bw) == 0.0:
@@ -652,7 +671,7 @@ def process_pending_workout(db, session_state):
                 for k in list(session_state.keys()):
                     if k.startswith(cleanup_prefixes):
                         session_state.pop(k, None)
-                session_state.pop("work_draft_loaded", None)
+            session_state.pop("work_draft_loaded", None)
         else:
             session_state["_pending_warning"] = "No entries with reps/duration > 0. Nothing saved."
 
@@ -663,81 +682,30 @@ def render_today_training_summary():
     
     summary = fetch_today_summary_cached(db, today_str)
     rows = summary["work"]
-    
-    st.markdown("""
-    <div style="background:#141417;border:0.5px solid rgba(255,255,255,0.07);border-radius:12px;padding:16px 20px;margin-bottom:12px;">
-    """, unsafe_allow_html=True)
-    
-    st.markdown('<div style="font-family:Syne;font-size:12px;font-weight:700;color:#444440;letter-spacing:0.12em;text-transform:uppercase;margin-bottom:12px;">Today Training</div>', unsafe_allow_html=True)
 
     if not rows:
-        st.info("no training logged today.")
-        st.markdown("</div>", unsafe_allow_html=True)
+        st.markdown('<div style="background:#141417;border:0.5px solid rgba(255,255,255,0.07);border-radius:12px;padding:16px 20px;margin-bottom:12px;"><div style="font-family:Syne;font-size:12px;font-weight:700;color:#444440;letter-spacing:0.12em;text-transform:uppercase;margin-bottom:12px;">Today Training</div><div style="font-size:13px;color:#444440;font-family:DM Sans;">No training logged today.</div></div>', unsafe_allow_html=True)
         return
 
     df = pd.DataFrame(rows)
-    df['rpe']          = pd.to_numeric(df['rpe'],          errors='coerce')
-    df['volume']       = pd.to_numeric(df['volume'],       errors='coerce')
+    df['rpe']    = pd.to_numeric(df['rpe'],    errors='coerce')
+    df['volume'] = pd.to_numeric(df['volume'], errors='coerce')
 
-    # Top Metrics
     total_volume = df['volume'].sum()
     avg_rpe      = df['rpe'].mean()
 
-    st.markdown(f"""
-    <div class="flex-between">
-      <div>
-        <div style="font-size:10px;color:#888880;font-family:DM Sans;text-transform:uppercase;letter-spacing:0.1em;margin-bottom:4px;">Total Volume</div>
-        <div style="font-family:Syne;font-size:32px;font-weight:800;color:#C8F135;letter-spacing:-0.04em;line-height:1;">
-          {total_volume:,.0f} <span style="font-size:14px;color:#888880;font-weight:300;">kg</span>
-        </div>
-      </div>
-      <div style="text-align:right;">
-        <div style="font-size:10px;color:#888880;font-family:DM Sans;text-transform:uppercase;letter-spacing:0.1em;margin-bottom:4px;">Avg RPE</div>
-        <div style="font-family:Syne;font-size:24px;font-weight:700;color:#F0EFE8;">{avg_rpe:.1f}</div>
-      </div>
-    </div>
-    """, unsafe_allow_html=True)
+    # Build exercise breakdown rows as pure HTML
+    sets_col = df.groupby("exercise")["exercise"].count().rename("Sets")
+    breakdown = df.groupby("exercise").agg(
+        Volume=("volume", "sum"),
+        RPE=("rpe", "mean"),
+    ).join(sets_col).reset_index()
 
-    st.divider()
+    rows_html = ""
+    for _, row in breakdown.iterrows():
+        rows_html += f'<div style="display:grid;grid-template-columns:2fr 1fr 1fr 1fr;gap:8px;padding:8px 0;border-top:0.5px solid rgba(255,255,255,0.05);align-items:center;"><div style="font-size:13px;color:#F0EFE8;font-family:DM Sans;">{row["exercise"]}</div><div style="font-size:12px;color:#888880;font-family:DM Sans;text-align:right;">{int(row["Sets"])} sets</div><div style="font-size:12px;color:#C8F135;font-family:DM Sans;text-align:right;">{row["Volume"]:,.0f} kg</div><div style="font-size:12px;color:#888880;font-family:DM Sans;text-align:right;">RPE {row["RPE"]:.1f}</div></div>'
 
-    # Exercise Breakdown Table
-    st.markdown("""<style>
-    [data-testid="stDataFrame"] th {
-      background: #1A1A1F !important; color: #888880 !important;
-      font-family: 'DM Sans' !important; font-size: 11px !important;
-      text-transform: uppercase; letter-spacing: 0.06em;
-    }
-    [data-testid="stDataFrame"] td {
-      color: #F0EFE8 !important; font-family: 'DM Sans' !important;
-    }
-    </style>""", unsafe_allow_html=True)
-    
-    with st.expander("Exercise Breakdown"):
-        sets_col = df.groupby("exercise")["exercise"].count().rename("Sets")
-
-        summary = df.groupby("exercise").agg(
-            Volume=("volume", "sum"),
-            RPE=("rpe", "mean"),
-        ).join(sets_col).reset_index()
-
-        summary = summary[["exercise", "Sets", "Volume", "RPE"]]
-        summary["Volume"] = summary["Volume"].map(lambda x: f"{x:,.1f} kg")
-        summary["RPE"]    = summary["RPE"].map(lambda x: f"{x:.1f}")
-        st.dataframe(summary, hide_index=True, use_container_width=True)
-
-    # Per-Set Detail Expanders
-    with st.expander("Per-Set Detail"):
-        for exercise, group in df.groupby("exercise"):
-            with st.expander(f"Entry {exercise}", expanded=False):
-                detail_cols = [c for c in
-                    ['weight', 'reps', 'duration_sec', 'rpe', 'volume']
-                    if c in group.columns]
-                st.dataframe(
-                    group[detail_cols].reset_index(drop=True),
-                    hide_index=False,
-                    use_container_width=True
-                )
-    st.markdown("</div>", unsafe_allow_html=True)
+    st.markdown(f'<div style="background:#141417;border:0.5px solid rgba(255,255,255,0.07);border-radius:12px;padding:16px 20px;margin-bottom:12px;"><div style="font-family:Syne;font-size:12px;font-weight:700;color:#444440;letter-spacing:0.12em;text-transform:uppercase;margin-bottom:14px;">Today Training</div><div style="display:flex;justify-content:space-between;align-items:flex-end;margin-bottom:14px;padding-bottom:14px;border-bottom:0.5px solid rgba(255,255,255,0.07);"><div><div style="font-size:10px;color:#888880;font-family:DM Sans;text-transform:uppercase;letter-spacing:0.1em;margin-bottom:4px;">Total Volume</div><div style="font-family:Syne;font-size:28px;font-weight:800;color:#C8F135;letter-spacing:-0.04em;line-height:1;">{total_volume:,.0f}<span style="font-size:13px;color:#888880;font-weight:400;">kg</span></div></div><div style="text-align:right;"><div style="font-size:10px;color:#888880;font-family:DM Sans;text-transform:uppercase;letter-spacing:0.1em;margin-bottom:4px;">Avg RPE</div><div style="font-family:Syne;font-size:22px;font-weight:700;color:#F0EFE8;">{avg_rpe:.1f}</div></div></div><div style="font-size:10px;color:#555552;font-family:DM Sans;text-transform:uppercase;letter-spacing:0.1em;margin-bottom:4px;display:grid;grid-template-columns:2fr 1fr 1fr 1fr;gap:8px;"><div>Exercise</div><div style="text-align:right;">Sets</div><div style="text-align:right;">Volume</div><div style="text-align:right;">RPE</div></div>{rows_html}</div>', unsafe_allow_html=True)
 
 def render_exercise_history_card():
     import pandas as pd

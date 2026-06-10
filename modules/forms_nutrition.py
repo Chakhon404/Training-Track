@@ -6,8 +6,9 @@ from datetime import datetime
 from modules.database import get_db, fetch_profile_cached, fetch_nutrition_cached, fetch_today_summary_cached
 from modules.constants import SUPPLEMENT_MAP
 
-def get_timestamp(log_date, log_time):
-    return f"{log_date} {log_time.strftime('%H:%M:%S')}"
+# 1. เปลี่ยนให้ใช้ String ในการต่อเวลา ไม่ต้องใช้ strftime() แล้ว
+def get_timestamp(log_date, log_time_str):
+    return f"{log_date} {log_time_str}:00"
 
 @st.fragment
 def render_biohack_form():
@@ -43,11 +44,9 @@ def render_biohack_form():
                             data["log_date"], "%Y-%m-%d"
                         ).date()
 
-                    # Parse time
+                    # Parse time (ตัดเอาแค่ String HH:MM)
                     if "log_time" in data:
-                        st.session_state.nut_time = datetime.strptime(
-                            data["log_time"], "%H:%M"
-                        ).time()
+                        st.session_state.nut_time = data["log_time"][:5]
 
                     # Parse supplements (map key names)
                     sups = data.get("supplements", {})
@@ -95,13 +94,11 @@ def render_biohack_form():
         else:
             st.session_state.nut_date = _now.date()
 
+        # โหลดเวลาให้เป็น String (HH:MM)
         if "time" in draft and isinstance(draft["time"], str):
-            try:
-                st.session_state.nut_time = datetime.strptime(draft["time"], "%H:%M:%S").time()
-            except ValueError:
-                st.session_state.nut_time = _now.time().replace(tzinfo=None)
+            st.session_state.nut_time = draft["time"][:5]
         else:
-            st.session_state.nut_time = _now.time().replace(tzinfo=None)
+            st.session_state.nut_time = _now.strftime("%H:%M")
         
         # food_name
         st.session_state.nut_food_name = draft.get("food_name", "")
@@ -143,7 +140,7 @@ def render_biohack_form():
         if "nut_date" not in st.session_state:
             st.session_state.nut_date = _now.date()
         if "nut_time" not in st.session_state:
-            st.session_state.nut_time = _now.time().replace(tzinfo=None)
+            st.session_state.nut_time = _now.strftime("%H:%M")
     if "nut_food_name" not in st.session_state:
         st.session_state.nut_food_name = ""
     if "nut_cal" not in st.session_state:
@@ -166,7 +163,7 @@ def render_biohack_form():
 
         data = {
             "date": str(st.session_state.nut_date),
-            "time": st.session_state.nut_time.strftime("%H:%M:%S"),
+            "time": f"{st.session_state.nut_time}:00" if len(st.session_state.nut_time) == 5 else "00:00:00",
             "food_name": st.session_state.get("nut_food_name", ""),
             "meal_score": st.session_state.get("nut_meal_score", 5),
             "cal": st.session_state.nut_cal,
@@ -179,11 +176,22 @@ def render_biohack_form():
         db.save_draft(form_key, data)
         st.session_state["_last_nut_draft_save"] = now
 
-    col_d, col_t = st.columns(2)
-    with col_d:
+    # 2. ฟังก์ชัน Callback สำหรับปุ่ม Quick Set (Now)
+    def set_nut_time_to_now():
+        _now = datetime.now(pytz.timezone("Asia/Bangkok"))
+        st.session_state.nut_date = _now.date()
+        st.session_state.nut_time = _now.strftime("%H:%M")
+        save_nut_draft()
+
+    # 3. จัดกลุ่ม Row 1 ใหม่ (Date, Time รูปแบบ Text, และปุ่ม Now)
+    r1_c1, r1_c2, r1_c3 = st.columns([4, 4, 2])
+    with r1_c1:
         l_date = st.date_input("Date", key="nut_date", on_change=save_nut_draft)
-    with col_t:
-        l_time = st.time_input("Time", key="nut_time", on_change=save_nut_draft)
+    with r1_c2:
+        l_time = st.text_input("Time (HH:MM)", key="nut_time", on_change=save_nut_draft)
+    with r1_c3:
+        st.markdown('<div style="font-size:14px; color:#F0EFE8; margin-bottom:8px; font-family:DM Sans;">Quick Set Time</div>', unsafe_allow_html=True)
+        st.button("Now", key="nut_now_btn", use_container_width=True, on_click=set_nut_time_to_now)
 
     food_name = st.text_input(
         "Food Name / Description",
@@ -242,9 +250,17 @@ def render_biohack_form():
         label_visibility="collapsed"
     )
 
-    submitted = st.button("Save Nutrition")
+    # 4. ปุ่มกว้างเต็มหน้าจอ
+    submitted = st.button("Save Nutrition", use_container_width=True)
 
     if submitted:
+        date_str = str(l_date)
+        
+        # เช็ค Format ของช่อง Time ให้ถูกต้องก่อน
+        if len(l_time) != 5 or ":" not in l_time:
+            st.error("Please enter time in HH:MM format (e.g., 12:30)")
+            return
+            
         log_ts = get_timestamp(l_date, l_time)
         nut_data = {
             "log_ts": log_ts,
@@ -270,7 +286,8 @@ def process_pending_nutrition(db, session_state):
     nut_time = session_state.get("nut_time")
 
     if nut_date and nut_time:
-        log_ts = f"{nut_date} {nut_time.strftime('%H:%M:%S')}"
+        # 5. ถอด strftime ออก ใช้ String ต่อกันตรงๆ
+        log_ts = f"{nut_date} {nut_time}:00"
         nut_data = {
             "log_ts": log_ts,
             "food_name": str(session_state.get("nut_food_name", "")),

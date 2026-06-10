@@ -4,8 +4,9 @@ import pytz
 from datetime import datetime
 from modules.database import get_db, fetch_today_summary_cached
 
-def get_timestamp(log_date, log_time):
-    return f"{log_date} {log_time.strftime('%H:%M:%S')}"
+# ปรับให้รองรับ log_time_str ที่เป็น String รูปแบบ HH:MM
+def get_timestamp(log_date, log_time_str):
+    return f"{log_date} {log_time_str}:00"
 
 @st.fragment
 def render_running_form():
@@ -18,7 +19,7 @@ def render_running_form():
         _bkk = pytz.timezone("Asia/Bangkok")
         _now = datetime.now(_bkk).replace(microsecond=0)
         
-        # Load date/time from draft if present, else default to now
+        # Load date
         if "date" in draft and isinstance(draft["date"], str):
             try:
                 st.session_state.run_date = datetime.strptime(draft["date"], "%Y-%m-%d").date()
@@ -27,19 +28,17 @@ def render_running_form():
         else:
             st.session_state.run_date = _now.date()
 
+        # Load time ให้เก็บเป็น String "HH:MM" เพื่อเลี่ยงบัค React
         if "time" in draft and isinstance(draft["time"], str):
-            try:
-                st.session_state.run_time = datetime.strptime(draft["time"], "%H:%M:%S").time()
-            except ValueError:
-                st.session_state.run_time = _now.time().replace(tzinfo=None)
+            st.session_state.run_time = draft["time"][:5]
         else:
-            st.session_state.run_time = _now.time().replace(tzinfo=None)
+            st.session_state.run_time = _now.strftime("%H:%M")
             
         st.session_state.run_cat = draft.get("cat", "Easy")
         st.session_state.run_dist = float(draft.get("dist", 0.0))
         st.session_state.run_dur = draft.get("dur", "00:00")
         st.session_state.run_hr = int(draft.get("hr", 0))
-        st.session_state.run_hrr = int(draft.get("hrr", 0))
+        # ลบการอ้างอิงถึง hrr ออก
         st.session_state.run_draft_loaded = True
 
     def save_run_draft():
@@ -51,24 +50,23 @@ def render_running_form():
 
         data = {
             "date": str(st.session_state.run_date),
-            "time": st.session_state.run_time.strftime("%H:%M:%S") if hasattr(st.session_state.run_time, "strftime") else str(st.session_state.run_time),
+            "time": f"{st.session_state.run_time}:00" if len(st.session_state.run_time) == 5 else "00:00:00",
             "cat": st.session_state.run_cat,
             "dist": st.session_state.run_dist,
             "dur": st.session_state.run_dur,
-            "hr": st.session_state.run_hr,
-            "hrr": st.session_state.run_hrr
+            "hr": st.session_state.run_hr
+            # ลบการส่งค่า hrr เข้า draft
         }
         db.save_draft(form_key, data)
         st.session_state["_last_run_draft_save"] = now
 
     # --- Standardized Widget Initialization ---
-    if "run_date" not in st.session_state or "run_time" not in st.session_state:
-        _bkk = pytz.timezone("Asia/Bangkok")
-        _now = datetime.now(_bkk).replace(microsecond=0)
-        if "run_date" not in st.session_state:
-            st.session_state.run_date = _now.date()
-        if "run_time" not in st.session_state:
-            st.session_state.run_time = _now.time().replace(tzinfo=None)
+    _bkk = pytz.timezone("Asia/Bangkok")
+    _now = datetime.now(_bkk).replace(microsecond=0)
+    if "run_date" not in st.session_state:
+        st.session_state.run_date = _now.date()
+    if "run_time" not in st.session_state:
+        st.session_state.run_time = _now.strftime("%H:%M")
     if "run_cat" not in st.session_state:
         st.session_state.run_cat = "Easy"
     if "run_dist" not in st.session_state:
@@ -77,30 +75,53 @@ def render_running_form():
         st.session_state.run_dur = "00:00"
     if "run_hr" not in st.session_state:
         st.session_state.run_hr = 0
-    if "run_hrr" not in st.session_state:
-        st.session_state.run_hrr = 0
+    # ลบการ Initialize hrr ออก
 
-    col_d, col_t = st.columns(2)
-    with col_d:
+    # สร้างฟังก์ชัน Callback สำหรับปุ่ม Now
+    def set_time_to_now():
+        _now = datetime.now(pytz.timezone("Asia/Bangkok"))
+        st.session_state.run_date = _now.date()
+        st.session_state.run_time = _now.strftime("%H:%M")
+        # บังคับบันทึกดราฟต์ทันที
+        save_run_draft()
+
+    # --- Row 1: Date & Time ---
+    r1_c1, r1_c2, r1_c3 = st.columns([4, 4, 2])
+    with r1_c1:
         l_date = st.date_input("Date", key="run_date", on_change=save_run_draft)
-    with col_t:
-        l_time = st.time_input("Time", key="run_time", on_change=save_run_draft)
+    with r1_c2:
+        l_time = st.text_input("Time (HH:MM)", key="run_time", on_change=save_run_draft)
+    with r1_c3:
+        st.markdown('<div style="font-size:14px; color:#F0EFE8; margin-bottom:8px; font-family:DM Sans;">Quick Set Time</div>', unsafe_allow_html=True)
+        # เรียกใช้ callback (on_click) แทนการเขียนลอจิกซ้อนใน if
+        st.button("Now", key="Use Current Time", use_container_width=True, on_click=set_time_to_now)
 
-    cat = st.selectbox("Activity Category", [ "Zone-2","Easy", "Tempo", "Interval", "Long", "Walk"], key="run_cat", on_change=save_run_draft)
+    # --- Row 2: Category & Distance ---
+    r2_c1, r2_c2 = st.columns(2)
+    with r2_c1:
+        cat = st.selectbox("Activity Category", ["Sprint", "Zone-2", "Easy", "Tempo", "Interval", "Long", "Walk"], key="run_cat", on_change=save_run_draft)
+    with r2_c2:
+        dist = st.number_input("Distance (km)", min_value=0.0, step=0.1, key="run_dist", on_change=save_run_draft)
 
-    c1, c2 = st.columns(2)
-    dist = c1.number_input("Distance (km)", min_value=0.0, step=0.1, key="run_dist", on_change=save_run_draft)
-    dur = st.text_input("Duration (MM:SS)", key="run_dur", on_change=save_run_draft)
+    # --- Row 3: Metrics (ปรับเหลือ 2 คอลัมน์ เพราะเอา hrr ออก) ---
+    r3_c1, r3_c2 = st.columns(2)
+    with r3_c1:
+        dur = st.text_input("Duration (MM:SS)", key="run_dur", on_change=save_run_draft)
+    with r3_c2:
+        hr = st.number_input("Avg Heart Rate", min_value=0, step=1, key="run_hr", on_change=save_run_draft)
 
-    c3, c4 = st.columns(2)
-    hr = c3.number_input("Avg Heart Rate", min_value=0, step=1, key="run_hr", on_change=save_run_draft)
-    hrr = c4.number_input("Recovery Delta", min_value=0, step=1, key="run_hrr", on_change=save_run_draft)
+    st.markdown('<div style="margin-bottom:10px;"></div>', unsafe_allow_html=True)
+    submitted = st.button("Log Movement", use_container_width=True)
 
-    submitted = st.button("Log Movement")
-
-    # Step 1: on submit, check duplicate and set show_confirm flag
+    # Step 1: on submit
     if submitted:
         date_str = str(l_date)
+        
+        # ตรวจสอบรูปแบบเวลาก่อนบันทึกเพื่อป้องกัน Error
+        if len(l_time) != 5 or ":" not in l_time:
+            st.error("Please enter time in HH:MM format (e.g., 06:36)")
+            return
+
         dup_count = db.check_duplicate_run(date_str)
         if dup_count > 0:
             st.session_state.run_show_confirm = True
@@ -125,8 +146,8 @@ def render_running_form():
                     "duration": dur,
                     "pace": pace_s,
                     "hr": hr,
-                    "hrr": hrr,
                     "category": cat
+                    # ลบ hrr ออกจาก Dictionary ที่ส่งเข้า Database
                 }
                 if db.save_run(run_data):
                     st.success("Movement session logged.")
@@ -136,7 +157,7 @@ def render_running_form():
             except Exception:
                 st.error("Use MM:SS format for duration.")
 
-    # Step 2: show confirmation UI OUTSIDE if submitted
+    # Step 2: Confirmation UI
     if st.session_state.get("run_show_confirm"):
         date_str = st.session_state.get("run_pending_date", "")
         st.markdown(f"""
@@ -170,11 +191,12 @@ def process_pending_run(db, session_state):
     _dist = float(session_state.get("run_dist", 0.0))
     _dur = str(session_state.get("run_dur", "00:00"))
     _hr = int(session_state.get("run_hr", 0))
-    _hrr = int(session_state.get("run_hrr", 0))
+    # ลบการอ้างอิง hrr
     _cat = str(session_state.get("run_cat", "Easy"))
 
     if run_date and run_time:
-        log_ts = f"{run_date} {run_time.strftime('%H:%M:%S')}"
+        # ใช้ run_time แบบ String เชื่อมต่อได้เลย ไม่ต้องใช้ .strftime()
+        log_ts = f"{run_date} {run_time}:00"
         try:
             p = _dur.split(":")
             mins, secs = (float(p[0]), float(p[1])) if len(p) == 2 else (0.0, 0.0)
@@ -189,7 +211,8 @@ def process_pending_run(db, session_state):
 
             run_data = {
                 "log_ts": log_ts, "distance": _dist, "duration": _dur,
-                "pace": pace_s, "hr": _hr, "hrr": _hrr, "category": _cat
+                "pace": pace_s, "hr": _hr, "category": _cat
+                # ลบ hrr ออกจาก Dictionary ที่เตรียมเซฟ
             }
             form_key = f"draft_run_{session_state.get('user_id', 'default')}"
             if db.save_run(run_data):

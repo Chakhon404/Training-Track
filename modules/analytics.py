@@ -411,7 +411,7 @@ def render_overview():
         </div>""", unsafe_allow_html=True)
 
     # Section B — Activity Status Row
-    c1, c2, c3, c4 = st.columns(4)
+    c1, c2, c3 = st.columns(3)
     
     with c1:
         if not work_today.empty:
@@ -431,16 +431,7 @@ def render_overview():
         else:
             st.metric("Movement", "Rest day")
 
-
     with c3:
-        if not weight_today.empty:
-            st.markdown('<div style="border-top:1.5px solid #C8F135;border-radius:2px;margin-bottom:-10px;position:relative;z-index:1;"></div>', unsafe_allow_html=True)
-            w = weight_today.iloc[-1]['weight']
-            st.metric("Weight", f"{w} kg")
-        else:
-            st.metric("Weight", "Not logged")
-
-    with c4:
         if not nut_today.empty:
             st.markdown('<div style="border-top:1.5px solid #C8F135;border-radius:2px;margin-bottom:-10px;position:relative;z-index:1;"></div>', unsafe_allow_html=True)
             cal = int(nut_today['calories'].sum())
@@ -522,21 +513,36 @@ def render_overview():
     # Section D — Training Detail Card
     render_today_training_summary()
 
-    # Section E — Movement Detail Card
+    # Section E — Movement Detail Card (pure HTML)
     if not run_today.empty:
-        with st.container(border=True):
-            st.markdown('<div style="font-family:Syne;font-size:12px;font-weight:700;color:#444440;letter-spacing:0.12em;text-transform:uppercase;margin-bottom:12px;">Today\'s Movement</div>', unsafe_allow_html=True)
-            # Show latest run details
-            last_run = run_today.iloc[-1]
-            r1, r2, r3, r4 = st.columns(4)
-            r1.metric("Distance", f"{last_run['distance']} km")
-            r2.metric("Duration", f"{last_run['duration']}")
-            r3.metric("Pace", f"{last_run['pace']} /km")
-            r4.metric("Avg HR", f"{last_run['hr']} bpm")
-    else:
-        st.info("No movement logged today.")
+        last_run = run_today.iloc[-1]
+        dist = last_run['distance']
+        dur   = last_run['duration']
+        pace = last_run['pace']
+        hr   = last_run['hr']
+        cat   = last_run.get('category', '')
 
-    st.divider()
+        cell_style = "background:#1A1A1F;border:0.5px solid rgba(255,255,255,0.06);border-radius:8px;padding:12px 14px;"
+        label_style = "font-size:10px;color:#888880;text-transform:uppercase;letter-spacing:0.06em;margin-bottom:6px;font-family:DM Sans;"
+        value_style = "font-family:Syne;font-size:20px;font-weight:800;color:#F0EFE8;letter-spacing:-0.03em;"
+
+        # สร้างป้ายแคปซูลสำหรับ Zone (ซ่อนอัตโนมัติถ้าไม่มีข้อมูล category)
+        zone_badge_html = f'<div style="background:rgba(200,241,53,0.08);border:0.5px solid rgba(200,241,53,0.2);color:#C8F135;padding:3px 12px;border-radius:20px;font-size:11px;font-family:DM Sans;font-weight:500; letter-spacing: 0.02em;">{cat}</div>' if cat else ''
+
+        st.markdown(f"""
+        <div style="background:#141417;border:0.5px solid rgba(255,255,255,0.07);border-radius:12px;padding:16px 20px;margin-bottom:12px;">
+            <div style="display:flex;align-items:center;justify-content:space-between;margin-bottom:14px;">
+                <div style="font-family:Syne;font-size:12px;font-weight:700;color:#444440;letter-spacing:0.12em;text-transform:uppercase;">Today's Movement</div>
+                {zone_badge_html}
+            </div>
+            <div style="display:grid;grid-template-columns:repeat(4,1fr);gap:10px;">
+                <div style="{cell_style}"><div style="{label_style}">Distance</div><div style="{value_style}">{dist} km</div></div>
+                <div style="{cell_style}"><div style="{label_style}">Duration</div><div style="{value_style}">{dur}</div></div>
+                <div style="{cell_style}"><div style="{label_style}">Pace</div><div style="{value_style}">{pace} /km</div></div>
+                <div style="{cell_style}"><div style="{label_style}">Avg HR</div><div style="{value_style}">{hr} bpm</div></div>
+            </div>
+        </div>
+        """, unsafe_allow_html=True)
 
     # Section F — Progressive Overload Alert
     st.markdown('<div style="font-family:Syne;font-size:18px;font-weight:700;color:#F0EFE8;margin-bottom:12px;">Progressive Overload Tracking</div>', unsafe_allow_html=True)
@@ -544,56 +550,70 @@ def render_overview():
     if all_workouts_data:
         df_vol = pd.DataFrame(all_workouts_data)
         df_vol['log_ts'] = pd.to_datetime(df_vol['log_ts'], format='ISO8601', utc=True).dt.tz_convert(None)
-        df_vol['week'] = df_vol['log_ts'].dt.isocalendar().week
-        df_vol['year'] = df_vol['log_ts'].dt.isocalendar().year
         
-        weekly_totals = df_vol.groupby(['year', 'week'])['volume'].sum().sort_index(ascending=False)
+        # ใช้ลอจิก Rolling 7 วันเพื่อแก้ปัญหาจำนวนวันไม่เท่ากัน
+        _bkk = pytz.timezone("Asia/Bangkok")
+        today = datetime.now(_bkk).date()
         
-        if len(weekly_totals) >= 2:
-            curr_vol = weekly_totals.iloc[0]
-            prev_vol = weekly_totals.iloc[1]
-            
-            if prev_vol > 0:
-                diff_pct = ((curr_vol - prev_vol) / prev_vol) * 100
-                if curr_vol >= prev_vol:
-                    st.markdown(f"""
-                    <div style="padding:10px 16px;background:rgba(200,241,53,0.06);border:0.5px solid rgba(200,241,53,0.2);border-radius:8px;display:flex;align-items:center;gap:10px;margin:8px 0;">
-                      <div style="width:8px;height:8px;border-radius:50%;background:#C8F135;flex-shrink:0;"></div>
-                      <span style="font-size:13px;color:#F0EFE8;font-family:DM Sans;">Volume up <strong style="color:#C8F135;">{diff_pct:.1f}%</strong> vs last week</span>
-                    </div>""", unsafe_allow_html=True)
-                else:
-                    st.markdown(f"""
-                    <div style="padding:10px 16px;background:rgba(241,53,104,0.06);border:0.5px solid rgba(241,53,104,0.2);border-radius:8px;display:flex;align-items:center;gap:10px;margin:8px 0;">
-                      <div style="width:8px;height:8px;border-radius:50%;background:#F13568;flex-shrink:0;"></div>
-                      <span style="font-size:13px;color:#F0EFE8;font-family:DM Sans;">Volume down <strong style="color:#F13568;">{abs(diff_pct):.1f}%</strong> vs last week</span>
-                    </div>""", unsafe_allow_html=True)
+        # ช่วงที่ 1: 7 วันล่าสุด (นับรวมวันนี้ย้อนไปทั้งหมด 7 วัน)
+        start_current = today - timedelta(days=6)
+        df_current_7 = df_vol[(df_vol['log_ts'].dt.date >= start_current) & (df_vol['log_ts'].dt.date <= today)]
+        curr_vol = df_current_7['volume'].sum()
+        
+        # ช่วงที่ 2: 7 วันก่อนหน้า (ถัดย้อนหลังไปอีก 7 วัน)
+        start_prev = today - timedelta(days=13)
+        end_prev = today - timedelta(days=7)
+        df_prev_7 = df_vol[(df_vol['log_ts'].dt.date >= start_prev) & (df_vol['log_ts'].dt.date <= end_prev)]
+        prev_vol = df_prev_7['volume'].sum()
+        
+        if prev_vol > 0:
+            diff_pct = ((curr_vol - prev_vol) / prev_vol) * 100
+            if curr_vol >= prev_vol:
+                st.markdown(f"""
+                <div style="padding:10px 16px;background:rgba(200,241,53,0.06);border:0.5px solid rgba(200,241,53,0.2);border-radius:8px;display:flex;align-items:center;gap:10px;margin:8px 0;">
+                  <div style="width:8px;height:8px;border-radius:50%;background:#C8F135;flex-shrink:0;"></div>
+                  <span style="font-size:13px;color:#F0EFE8;font-family:DM Sans;">Volume up <strong style="color:#C8F135;">{diff_pct:.1f}%</strong> vs previous 7 days</span>
+                </div>""", unsafe_allow_html=True)
             else:
-                st.info("Comparison not possible (previous week volume was 0).")
+                st.markdown(f"""
+                <div style="padding:10px 16px;background:rgba(241,53,104,0.06);border:0.5px solid rgba(241,53,104,0.2);border-radius:8px;display:flex;align-items:center;gap:10px;margin:8px 0;">
+                  <div style="width:8px;height:8px;border-radius:50%;background:#F13568;flex-shrink:0;"></div>
+                  <span style="font-size:13px;color:#F0EFE8;font-family:DM Sans;">Volume down <strong style="color:#F13568;">{abs(diff_pct):.1f}%</strong> vs previous 7 days</span>
+                </div>""", unsafe_allow_html=True)
         else:
-            st.info("Log at least 2 weeks of training to see overload trends.")
+            st.info("Comparison not possible (previous week volume was 0).")
     else:
         st.info("Log training sessions to see overload trends.")
-
-    st.divider()
     
-    # Section G — Trend Charts
-    l, r = st.columns(2)
-    with st.spinner("Generating charts..."):
+   # Section G — Trend Charts
+    with st.spinner("Generating volume chart..."):
         all_workouts = fetch_workouts_cached(db)
-        all_weights  = fetch_weight_cached(db)
         df_wrk_all = pd.DataFrame(all_workouts)
-        df_w_all   = pd.DataFrame(all_weights)
 
-        df_w_plot = df_w_all.rename(columns={'log_ts': 'Date', 'weight': 'Weight'})
-        df_w_plot = safe_numeric(df_w_plot, ['Weight'])
-        
-        df_wrk_plot = df_wrk_all.rename(columns={'log_ts': 'Date', 'volume': 'Volume'})
-        df_wrk_plot = safe_numeric(df_wrk_plot, ['Volume'])
+        if not df_wrk_all.empty:
+            df_wrk_plot = df_wrk_all.rename(columns={'log_ts': 'Date', 'volume': 'Volume'})
+            df_wrk_plot = safe_numeric(df_wrk_plot, ['Volume'])
+            
+            # 1. แปลงคอลัมน์ Date ให้เหลือแค่วันที่ (ลบข้อมูลเวลาออกชั่วคราวเพื่อใช้จัดกลุ่ม)
+            df_wrk_plot['Date'] = pd.to_datetime(df_wrk_plot['Date'], format='ISO8601', errors='coerce').dt.date
+            
+            # 2. Groupby ตามวันที่ แล้วทำการ Sum รวม Volume ของทุกท่าในวันเดียวกัน
+            df_wrk_plot = df_wrk_plot.groupby('Date', as_index=False)['Volume'].sum()
+            
+            # 3. เรียงลำดับจากอดีตไปปัจจุบันเพื่อความถูกต้องในการลากเส้นกราฟ
+            df_wrk_plot = df_wrk_plot.sort_values('Date')
+        else:
+            df_wrk_plot = pd.DataFrame()
 
-    with l:
-        render_chart_safely(df_wrk_plot, 'Date', 'Volume', "Weekly Training Volume", primary_color='#C8F135', key="volume_trend_overview")
-    with r:
-        render_chart_safely(df_w_plot, 'Date', 'Weight', "Weight Progression", primary_color='#C8F135', key="weight_trend_overview")
+    # แสดงผลกราฟแบบเต็มความกว้าง (ลบ st.columns ออกเพื่อให้กราฟขยายเต็มตา ดูง่ายขึ้น)
+    render_chart_safely(
+        df_wrk_plot, 
+        'Date', 
+        'Volume', 
+        "Weekly Training Volume", 
+        primary_color='#C8F135', 
+        key="volume_trend_overview"
+    )
 
     st.divider()
     render_export_section()
