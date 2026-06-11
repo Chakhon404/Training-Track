@@ -32,7 +32,7 @@ def check_password():
             st.stop()
 
     # 3. ถ้าไม่มี Token หรือ Token ไม่ถูกต้อง -> แสดงหน้ากรอกรหัสผ่าน (Manual Login)
-    st.markdown('<div style="font-family:Syne;font-size:32px;font-weight:800;color:#F0EFE8;letter-spacing:-0.04em;margin-bottom:20px;">Secure Access</div>', unsafe_allow_html=True)
+    st.markdown('<div style="font-family:Inter, sans-serif;font-size:32px;font-weight:800;color:#F0EFE8;letter-spacing:-0.04em;margin-bottom:20px;">Secure Access</div>', unsafe_allow_html=True)
     with st.form("login_form"):
         pwd = st.text_input("Access Key", type="password", placeholder="กรอกรหัสผ่านเพื่อเข้าใช้งาน")
         submitted = st.form_submit_button("Unlock Dashboard")
@@ -84,10 +84,10 @@ def main():
     db = get_db()
 
     # --- GLOBAL CSS INJECTION ---
+    st.markdown("<style>@import url('https://fonts.googleapis.com/css2?family=Inter:wght@300;400;500;600;700;800&display=swap'); * { font-family: 'Inter', sans-serif; }</style>", unsafe_allow_html=True)
     st.markdown("""
     <link rel="preconnect" href="https://fonts.googleapis.com">
     <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
-    <link href="https://fonts.googleapis.com/css2?family=DM+Sans:wght@300;400;500&family=Syne:wght@700;800&display=swap" rel="stylesheet">
     <style>
         .stApp, [data-testid="stAppViewContainer"] {
             background: #0D0D0F; color: #F0EFE8;
@@ -108,7 +108,7 @@ def main():
         }
 
         [data-testid="stSidebarContent"] .stToggle label {
-            color: #888880; font-family: 'DM Sans';
+            color: #888880; font-family:Inter, sans-serif;
         }
 
         .stTabs [data-baseweb="tab-list"] {
@@ -118,7 +118,7 @@ def main():
 
         .stTabs [data-baseweb="tab"] {
             background: transparent; color: #888880;
-            font-family: 'DM Sans'; font-size: 13px; font-weight: 500;
+            font-family:Inter, sans-serif; font-size: 13px; font-weight: 500;
             border-radius: 6px; padding: 6px 14px; border: none;
         }
 
@@ -136,12 +136,12 @@ def main():
         }
 
         [data-testid="stMetricLabel"] {
-            font-family: 'DM Sans'; font-size: 10px; color: #888880;
+            font-family:Inter, sans-serif; font-size: 10px; color: #888880;
             text-transform: uppercase; letter-spacing: 0.04em;
         }
 
         [data-testid="stMetricValue"] {
-            font-family: 'Syne'; font-size: 22px; font-weight: 700;
+            font-family:Inter, sans-serif; font-size: 22px; font-weight: 700;
             color: #F0EFE8; letter-spacing: -0.03em;
         }
 
@@ -156,16 +156,16 @@ def main():
         }
 
         h1, h2, h3 {
-            font-family: 'Syne'; letter-spacing: -0.03em; color: #F0EFE8;
+            font-family:Inter, sans-serif; letter-spacing: -0.03em; color: #F0EFE8;
         }
 
         [data-testid="stMarkdownContainer"] h3 {
-            font-family: 'Syne'; font-weight: 700; color: #F0EFE8;
+            font-family:Inter, sans-serif; font-weight: 700; color: #F0EFE8;
         }
 
         .stButton > button {
             background: #1A1A1F; border: 0.5px solid rgba(255,255,255,0.07);
-            color: #F0EFE8; border-radius: 8px; font-family: 'DM Sans';
+            color: #F0EFE8; border-radius: 8px; font-family:Inter, sans-serif;
             font-weight: 500; transition: all 0.15s;
         }
 
@@ -176,7 +176,7 @@ def main():
         .stButton > button[kind="primary"], .stButton > button[data-testid*="save"],
         button.save-btn {
             background: #C8F135 !important; color: #0D0D0F !important;
-            font-family: 'Syne' !important; font-weight: 800 !important;
+            font-family: 'Inter', sans-serif !important; font-weight: 800 !important;
             border: none !important;
         }
 
@@ -212,7 +212,7 @@ def main():
         }
 
         [data-testid="stExpander"] summary {
-            color: #F0EFE8; font-family: 'DM Sans'; font-weight: 500;
+            color: #F0EFE8; font-family:Inter, sans-serif; font-weight: 500;
         }
 
         div[data-testid="stVerticalBlockBorderWrapper"] {
@@ -262,7 +262,7 @@ def main():
         }
 
         .stCheckbox label span {
-            color: #888880; font-family: 'DM Sans';
+            color: #888880; font-family:Inter, sans-serif;
         }
 
         .stCheckbox [data-testid="stCheckbox"] span[aria-checked="true"] {
@@ -331,7 +331,7 @@ def main():
     with st.sidebar:
         st.markdown("""
         <div style="padding:8px 0 16px;">
-          <span style="font-family:Syne;font-weight:800;font-size:20px;
+          <span style="font-family:Inter, sans-serif;font-weight:800;font-size:20px;
           color:#C8F135;letter-spacing:-0.03em;">Training
           <span style="color:#F0EFE8;">Track</span></span>
         </div>""", unsafe_allow_html=True)
@@ -370,7 +370,7 @@ def main():
             st.warning("Database offline. Cannot load sidebar tools.")
 
     # --- APP HEADER ---
-    st.markdown("""<div style="font-family:Syne;font-size:26px;font-weight:800;
+    st.markdown("""<div style="font-family:Inter, sans-serif;font-size:26px;font-weight:800;
     color:#F0EFE8;letter-spacing:-0.04em;margin-bottom:4px;">Training & Health Track</div>""", unsafe_allow_html=True)
     st.divider()
 

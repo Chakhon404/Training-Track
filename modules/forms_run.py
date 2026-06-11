@@ -11,7 +11,7 @@ def get_timestamp(log_date, log_time_str):
 @st.fragment
 def render_running_form():
     db = get_db()
-    st.markdown('<div style="font-family:Syne;font-size:20px;font-weight:800;color:#F0EFE8;letter-spacing:-0.04em;margin-bottom:16px;">Movement Tracker</div>', unsafe_allow_html=True)
+    st.markdown('<div style="font-family:Inter, sans-serif;font-size:20px;font-weight:800;color:#F0EFE8;letter-spacing:-0.04em;margin-bottom:16px;">Movement Tracker</div>', unsafe_allow_html=True)
     form_key = f"draft_run_{st.session_state.get('user_id', 'default')}"
 
     if "run_draft_loaded" not in st.session_state:
@@ -92,7 +92,7 @@ def render_running_form():
     with r1_c2:
         l_time = st.text_input("Time (HH:MM)", key="run_time", on_change=save_run_draft)
     with r1_c3:
-        st.markdown('<div style="font-size:14px; color:#F0EFE8; margin-bottom:8px; font-family:DM Sans;">Quick Set Time</div>', unsafe_allow_html=True)
+        st.markdown('<div style="font-size:14px; color:#F0EFE8; margin-bottom:8px; font-family:Inter, sans-serif;">Quick Set Time</div>', unsafe_allow_html=True)
         # เรียกใช้ callback (on_click) แทนการเขียนลอจิกซ้อนใน if
         st.button("Now", key="Use Current Time", use_container_width=True, on_click=set_time_to_now)
 
@@ -162,7 +162,7 @@ def render_running_form():
         date_str = st.session_state.get("run_pending_date", "")
         st.markdown(f"""
         <div style="background:rgba(241,53,104,0.08);border:0.5px solid rgba(241,53,104,0.2);
-        border-radius:8px;padding:10px 14px;margin:8px 0;font-size:13px;color:#F13568;font-family:DM Sans;">
+        border-radius:8px;padding:10px 14px;margin:8px 0;font-size:13px;color:#F13568;font-family:Inter, sans-serif;">
         Duplicate entries found on {date_str}.</div>""", unsafe_allow_html=True)
         
         col1, col2, col3 = st.columns(3)

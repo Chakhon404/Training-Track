@@ -20,7 +20,7 @@ def apply_dark_theme(fig, primary_color='#C8F135'):
     fig.update_layout(
         paper_bgcolor='rgba(0,0,0,0)',
         plot_bgcolor='#141417',
-        font=dict(family='DM Sans', color='#888880', size=11),
+        font=dict(family='Inter', color='#888880', size=11),
         xaxis=dict(
             gridcolor='rgba(255,255,255,0.05)',
             linecolor='rgba(255,255,255,0.07)',
@@ -63,7 +63,7 @@ def render_chart_safely(df, x, y, title=None, chart_type='line', primary_color='
         return
 
     if title:
-        st.markdown(f'<div style="font-family:Syne;font-size:18px;font-weight:700;color:#F0EFE8;margin-bottom:8px;">{title}</div>', unsafe_allow_html=True)
+        st.markdown(f'<div style="font-family:Inter, sans-serif;font-size:18px;font-weight:700;color:#F0EFE8;margin-bottom:8px;">{title}</div>', unsafe_allow_html=True)
     
     # Logic: 1 point = scatter, >1 point = requested type
     if chart_type == 'line':
@@ -122,7 +122,7 @@ def predict_target_date(df_weights, target=64.0):
 # --- UI RENDERING ---
 
 def render_analytics():
-    st.markdown('<div style="font-family:Syne;font-size:26px;font-weight:800;color:#F0EFE8;letter-spacing:-0.04em;margin-bottom:4px;">Weight</div>', unsafe_allow_html=True)
+    st.markdown('<div style="font-family:Inter, sans-serif;font-size:26px;font-weight:800;color:#F0EFE8;letter-spacing:-0.04em;margin-bottom:4px;">Weight</div>', unsafe_allow_html=True)
     db = get_db()
     profile = fetch_profile_cached(db) or {}
     GOAL_WEIGHT = profile.get("goal_weight_kg") or 64.0
@@ -154,7 +154,7 @@ def render_analytics():
         st.divider()
 
     # 2. Unified Logging Form
-    st.markdown('<div style="font-family:Syne;font-size:20px;font-weight:700;color:#F0EFE8;margin-bottom:12px;">Weight & Body Fat Log</div>', unsafe_allow_html=True)
+    st.markdown('<div style="font-family:Inter, sans-serif;font-size:20px;font-weight:700;color:#F0EFE8;margin-bottom:12px;">Weight & Body Fat Log</div>', unsafe_allow_html=True)
     with st.form("weight_form_unified"):
         c1, c2, c3 = st.columns(3)
         today_w = c1.number_input("Weight (kg)", min_value=30.0, step=0.1)
@@ -165,7 +165,7 @@ def render_analytics():
         if st.form_submit_button("Save Stats", use_container_width=True):
             if db.check_duplicate_weight(str(w_date)) > 0:
                 st.markdown("""
-                <div style="background:rgba(239,159,39,0.08);border:0.5px solid rgba(239,159,39,0.3);border-radius:8px;padding:10px 14px;margin:8px 0;font-size:13px;color:#EF9F27;font-family:DM Sans;">
+                <div style="background:rgba(239,159,39,0.08);border:0.5px solid rgba(239,159,39,0.3);border-radius:8px;padding:10px 14px;margin:8px 0;font-size:13px;color:#EF9F27;font-family:Inter, sans-serif;">
                 Duplicate entry already exists for """ + str(w_date) + """. Please use the Data Manager to overwrite.</div>""", unsafe_allow_html=True)
             else:
                 _bkk = pytz.timezone("Asia/Bangkok")
@@ -196,13 +196,13 @@ def render_analytics():
             )
             fig_bf.update_traces(mode='lines+markers')
             apply_dark_theme(fig_bf, '#F13568')
-            st.markdown('<div style="font-family:Syne;font-size:18px;font-weight:700;color:#F0EFE8;margin-bottom:8px;">Body Fat % Trend</div>', unsafe_allow_html=True)
+            st.markdown('<div style="font-family:Inter, sans-serif;font-size:18px;font-weight:700;color:#F0EFE8;margin-bottom:8px;">Body Fat % Trend</div>', unsafe_allow_html=True)
             st.plotly_chart(fig_bf, use_container_width=True, key="bodyfat_trend_tab")
         else:
             st.info("Log body fat to see the trend chart.")
 
 def render_nutrition_analysis():
-    st.markdown('<div style="font-family:Syne;font-size:22px;font-weight:800;color:#F0EFE8;letter-spacing:-0.04em;margin-bottom:12px;">Nutrition & Energy</div>', unsafe_allow_html=True)
+    st.markdown('<div style="font-family:Inter, sans-serif;font-size:22px;font-weight:800;color:#F0EFE8;letter-spacing:-0.04em;margin-bottom:12px;">Nutrition & Energy</div>', unsafe_allow_html=True)
     db = get_db()
     profile = fetch_profile_cached(db) or {}
     GOAL_CALORIES = profile.get("goal_calories") or 2500
@@ -267,7 +267,7 @@ def render_nutrition_analysis():
     st.divider()
     
     # Dynamic Supplement Status based on Profile Defaults
-    st.markdown('<div style="font-family:Syne;font-size:18px;font-weight:700;color:#F0EFE8;margin-bottom:12px;">Supplements</div>', unsafe_allow_html=True)
+    st.markdown('<div style="font-family:Inter, sans-serif;font-size:18px;font-weight:700;color:#F0EFE8;margin-bottom:12px;">Supplements</div>', unsafe_allow_html=True)
     default_sups = profile.get("default_supplements") or []
     if not default_sups:
         st.info("No supplements configured in profile. Go to System -> Edit Profile & Goals to add them.")
@@ -278,14 +278,14 @@ def render_nutrition_analysis():
                 display, _, db_col = SUPPLEMENT_MAP[sup_key]
                 taken = bool(df_today[db_col].any()) if db_col in df_today.columns else False
                 if taken:
-                    pills_html += f'<div style="background:rgba(200,241,53,0.08);border:0.5px solid rgba(200,241,53,0.2);color:#C8F135;padding:4px 12px;border-radius:20px;font-size:11px;font-family:DM Sans;font-weight:500;">{display}</div>'
+                    pills_html += f'<div style="background:rgba(200,241,53,0.08);border:0.5px solid rgba(200,241,53,0.2);color:#C8F135;padding:4px 12px;border-radius:20px;font-size:11px;font-family:Inter, sans-serif;font-weight:500;">{display}</div>'
                 else:
-                    pills_html += f'<div style="background:#1A1A1F;border:0.5px solid rgba(255,255,255,0.07);color:#444440;padding:4px 12px;border-radius:20px;font-size:11px;font-family:DM Sans;font-weight:500;">{display}</div>'
+                    pills_html += f'<div style="background:#1A1A1F;border:0.5px solid rgba(255,255,255,0.07);color:#444440;padding:4px 12px;border-radius:20px;font-size:11px;font-family:Inter, sans-serif;font-weight:500;">{display}</div>'
         pills_html += '</div>'
         st.markdown(pills_html, unsafe_allow_html=True)
 
     st.divider()
-    st.markdown('<div style="font-family:Syne;font-size:18px;font-weight:700;color:#F0EFE8;margin-bottom:12px;">Daily Progress (%)</div>', unsafe_allow_html=True)
+    st.markdown('<div style="font-family:Inter, sans-serif;font-size:18px;font-weight:700;color:#F0EFE8;margin-bottom:12px;">Daily Progress (%)</div>', unsafe_allow_html=True)
     
     progress_html = ""
     macro_colors = {"Calories": "#C8F135", "Protein": "#F13568", "Carbs": "#35C8F1", "Fat": "#EF9F27"}
@@ -301,7 +301,7 @@ def render_nutrition_analysis():
         progress_html += f"""
         <div style="margin-bottom:10px;">
           <div style="display:flex;justify-content:space-between;margin-bottom:4px;">
-            <span style="font-size:11px;color:#888880;font-family:DM Sans;">{label}</span>
+            <span style="font-size:11px;color:#888880;font-family:Inter, sans-serif;">{label}</span>
             <span style="font-size:11px;color:#F0EFE8;font-weight:500;">{val:.0f} / {goal}</span>
           </div>
           <div style="height:4px;background:#1F1F26;border-radius:2px;">
@@ -314,7 +314,7 @@ def render_nutrition_analysis():
     # Section: Meal Score Trend
     if 'meal_score' in df_nut.columns and df_nut['meal_score'].notna().any():
         st.divider()
-        st.markdown('<div style="font-family:Syne;font-size:18px;font-weight:700;color:#F0EFE8;margin-bottom:12px;">Meal Score Trend</div>', unsafe_allow_html=True)
+        st.markdown('<div style="font-family:Inter, sans-serif;font-size:18px;font-weight:700;color:#F0EFE8;margin-bottom:12px;">Meal Score Trend</div>', unsafe_allow_html=True)
         # Ensure we drop NaNs for the chart and sort by Date
         plot_ms_df = df_nut.dropna(subset=['meal_score']).copy()
         plot_ms_df['Date_plot'] = pd.to_datetime(plot_ms_df['Date'], format='ISO8601', utc=True).dt.tz_convert(None)
@@ -330,7 +330,7 @@ def render_nutrition_analysis():
         st.plotly_chart(fig_ms, use_container_width=True, key="meal_score_trend")
 
     st.divider()
-    st.markdown('<div style="font-family:Syne;font-size:18px;font-weight:700;color:#F0EFE8;margin-bottom:12px;">Supplement Compliance (last 30 days)</div>', unsafe_allow_html=True)
+    st.markdown('<div style="font-family:Inter, sans-serif;font-size:18px;font-weight:700;color:#F0EFE8;margin-bottom:12px;">Supplement Compliance (last 30 days)</div>', unsafe_allow_html=True)
 
     # Total unique logging days
     total_days = df_nut['Date_date'].nunique()
@@ -383,8 +383,8 @@ def render_overview():
 
     # Section A — Header
     st.markdown(f"""
-    <div style="font-family:Syne;font-size:26px;font-weight:800;color:#F0EFE8;letter-spacing:-0.04em;margin:0 0 4px;">Daily Overview</div>
-    <div style="font-size:12px;color:#888880;font-family:DM Sans;font-weight:300;margin-bottom:20px;">{today.strftime('%A, %d %B %Y')}</div>
+    <div style="font-family:Inter, sans-serif;font-size:26px;font-weight:800;color:#F0EFE8;letter-spacing:-0.04em;margin:0 0 4px;">Daily Overview</div>
+    <div style="font-size:12px;color:#888880;font-family:Inter, sans-serif;font-weight:300;margin-bottom:20px;">{today.strftime('%A, %d %B %Y')}</div>
     """, unsafe_allow_html=True)
 
     if profile:
@@ -397,16 +397,16 @@ def render_overview():
         
         profile_grid = f"""
         <div style="display:grid;grid-template-columns:repeat(4,1fr);gap:12px;">
-            <div><div style="font-size:10px;color:#888880;text-transform:uppercase;letter-spacing:0.04em;margin-bottom:4px;">Weight</div><div style="font-family:Syne;font-size:20px;font-weight:700;color:#F0EFE8;">{profile.get('weight_kg', 'N/A')} kg</div></div>
-            <div><div style="font-size:10px;color:#888880;text-transform:uppercase;letter-spacing:0.04em;margin-bottom:4px;">Height</div><div style="font-family:Syne;font-size:20px;font-weight:700;color:#F0EFE8;">{profile.get('height_cm', 'N/A')} cm</div></div>
-            <div><div style="font-size:10px;color:#888880;text-transform:uppercase;letter-spacing:0.04em;margin-bottom:4px;">Body Fat</div><div style="font-family:Syne;font-size:20px;font-weight:700;color:#F0EFE8;">{profile.get('body_fat_pct', 'N/A')}%</div></div>
-            <div><div style="font-size:10px;color:#888880;text-transform:uppercase;letter-spacing:0.04em;margin-bottom:4px;">To Goal</div><div style="font-family:Syne;font-size:20px;font-weight:700;color:#F0EFE8;">{f"{abs(curr_w - goal_w):.2f}" if goal_w and curr_w else 'N/A'} kg</div></div>
+            <div><div style="font-size:10px;color:#888880;text-transform:uppercase;letter-spacing:0.04em;margin-bottom:4px;">Weight</div><div style="font-family:Inter, sans-serif;font-size:20px;font-weight:700;color:#F0EFE8;">{profile.get('weight_kg', 'N/A')} kg</div></div>
+            <div><div style="font-size:10px;color:#888880;text-transform:uppercase;letter-spacing:0.04em;margin-bottom:4px;">Height</div><div style="font-family:Inter, sans-serif;font-size:20px;font-weight:700;color:#F0EFE8;">{profile.get('height_cm', 'N/A')} cm</div></div>
+            <div><div style="font-size:10px;color:#888880;text-transform:uppercase;letter-spacing:0.04em;margin-bottom:4px;">Body Fat</div><div style="font-family:Inter, sans-serif;font-size:20px;font-weight:700;color:#F0EFE8;">{profile.get('body_fat_pct', 'N/A')}%</div></div>
+            <div><div style="font-size:10px;color:#888880;text-transform:uppercase;letter-spacing:0.04em;margin-bottom:4px;">To Goal</div><div style="font-family:Inter, sans-serif;font-size:20px;font-weight:700;color:#F0EFE8;">{f"{abs(curr_w - goal_w):.2f}" if goal_w and curr_w else 'N/A'} kg</div></div>
         </div>
         """
         
         st.markdown(f"""
         <div style="background:#141417;border:0.5px solid rgba(255,255,255,0.07);border-radius:12px;padding:16px 20px;margin-bottom:12px;">
-            <div style="font-family:Syne;font-size:12px;font-weight:700;color:#444440;letter-spacing:0.12em;text-transform:uppercase;margin-bottom:12px;">Profile</div>
+            <div style="font-family:Inter, sans-serif;font-size:12px;font-weight:700;color:#444440;letter-spacing:0.12em;text-transform:uppercase;margin-bottom:12px;">Profile</div>
             {profile_grid}
         </div>""", unsafe_allow_html=True)
 
@@ -465,22 +465,22 @@ def render_overview():
                     display, _, db_col = SUPPLEMENT_MAP[sup_key]
                     taken = bool(nut_today[db_col].any()) if db_col in nut_today.columns else False
                     if taken:
-                        pills_html += f'<div style="background:rgba(200,241,53,0.08);border:0.5px solid rgba(200,241,53,0.2);color:#C8F135;padding:4px 12px;border-radius:20px;font-size:11px;font-family:DM Sans;font-weight:500;">{display}</div>'
+                        pills_html += f'<div style="background:rgba(200,241,53,0.08);border:0.5px solid rgba(200,241,53,0.2);color:#C8F135;padding:4px 12px;border-radius:20px;font-size:11px;font-family:Inter, sans-serif;font-weight:500;">{display}</div>'
                     else:
-                        pills_html += f'<div style="background:#1A1A1F;border:0.5px solid rgba(255,255,255,0.07);color:#444440;padding:4px 12px;border-radius:20px;font-size:11px;font-family:DM Sans;font-weight:500;">{display}</div>'
+                        pills_html += f'<div style="background:#1A1A1F;border:0.5px solid rgba(255,255,255,0.07);color:#444440;padding:4px 12px;border-radius:20px;font-size:11px;font-family:Inter, sans-serif;font-weight:500;">{display}</div>'
             pills_html += '</div>'
 
         st.markdown(f"""
         <div style="background:#141417;border:0.5px solid rgba(255,255,255,0.07);
         border-radius:12px;padding:16px 20px;margin-bottom:12px;">
-            <div style="font-family:Syne;font-size:12px;font-weight:700;color:#444440;
+            <div style="font-family:Inter, sans-serif;font-size:12px;font-weight:700;color:#444440;
             letter-spacing:0.12em;text-transform:uppercase;margin-bottom:14px;">Today's Nutrition</div>
             <div style="display:grid;grid-template-columns:repeat(3,1fr);gap:10px;">
                 <div style="background:#1A1A1F;border:0.5px solid rgba(255,255,255,0.06);
                 border-radius:8px;padding:12px 14px;">
                     <div style="font-size:10px;color:#888880;text-transform:uppercase;
-                    letter-spacing:0.06em;margin-bottom:6px;font-family:DM Sans;">Protein</div>
-                    <div style="font-family:Syne;font-size:22px;font-weight:800;
+                    letter-spacing:0.06em;margin-bottom:6px;font-family:Inter, sans-serif;">Protein</div>
+                    <div style="font-family:Inter, sans-serif;font-size:22px;font-weight:800;
                     color:#F0EFE8;letter-spacing:-0.03em;">{prot_total}<span style="font-size:13px;
                     color:#888880;font-weight:400;">g</span></div>
                     <div style="margin-top:4px;">{_delta_html(prot_total, GOAL_PROTEIN)}</div>
@@ -488,8 +488,8 @@ def render_overview():
                 <div style="background:#1A1A1F;border:0.5px solid rgba(255,255,255,0.06);
                 border-radius:8px;padding:12px 14px;">
                     <div style="font-size:10px;color:#888880;text-transform:uppercase;
-                    letter-spacing:0.06em;margin-bottom:6px;font-family:DM Sans;">Carbs</div>
-                    <div style="font-family:Syne;font-size:22px;font-weight:800;
+                    letter-spacing:0.06em;margin-bottom:6px;font-family:Inter, sans-serif;">Carbs</div>
+                    <div style="font-family:Inter, sans-serif;font-size:22px;font-weight:800;
                     color:#F0EFE8;letter-spacing:-0.03em;">{carb_total}<span style="font-size:13px;
                     color:#888880;font-weight:400;">g</span></div>
                     <div style="margin-top:4px;">{_delta_html(carb_total, GOAL_CARBS)}</div>
@@ -497,8 +497,8 @@ def render_overview():
                 <div style="background:#1A1A1F;border:0.5px solid rgba(255,255,255,0.06);
                 border-radius:8px;padding:12px 14px;">
                     <div style="font-size:10px;color:#888880;text-transform:uppercase;
-                    letter-spacing:0.06em;margin-bottom:6px;font-family:DM Sans;">Fat</div>
-                    <div style="font-family:Syne;font-size:22px;font-weight:800;
+                    letter-spacing:0.06em;margin-bottom:6px;font-family:Inter, sans-serif;">Fat</div>
+                    <div style="font-family:Inter, sans-serif;font-size:22px;font-weight:800;
                     color:#F0EFE8;letter-spacing:-0.03em;">{fat_total}<span style="font-size:13px;
                     color:#888880;font-weight:400;">g</span></div>
                     <div style="margin-top:4px;">{_delta_html(fat_total, GOAL_FAT)}</div>
@@ -523,16 +523,16 @@ def render_overview():
         cat   = last_run.get('category', '')
 
         cell_style = "background:#1A1A1F;border:0.5px solid rgba(255,255,255,0.06);border-radius:8px;padding:12px 14px;"
-        label_style = "font-size:10px;color:#888880;text-transform:uppercase;letter-spacing:0.06em;margin-bottom:6px;font-family:DM Sans;"
-        value_style = "font-family:Syne;font-size:20px;font-weight:800;color:#F0EFE8;letter-spacing:-0.03em;"
+        label_style = "font-size:10px;color:#888880;text-transform:uppercase;letter-spacing:0.06em;margin-bottom:6px;font-family:Inter, sans-serif;"
+        value_style = "font-family:Inter, sans-serif;font-size:20px;font-weight:800;color:#F0EFE8;letter-spacing:-0.03em;"
 
         # สร้างป้ายแคปซูลสำหรับ Zone (ซ่อนอัตโนมัติถ้าไม่มีข้อมูล category)
-        zone_badge_html = f'<div style="background:rgba(200,241,53,0.08);border:0.5px solid rgba(200,241,53,0.2);color:#C8F135;padding:3px 12px;border-radius:20px;font-size:11px;font-family:DM Sans;font-weight:500; letter-spacing: 0.02em;">{cat}</div>' if cat else ''
+        zone_badge_html = f'<div style="background:rgba(200,241,53,0.08);border:0.5px solid rgba(200,241,53,0.2);color:#C8F135;padding:3px 12px;border-radius:20px;font-size:11px;font-family:Inter, sans-serif;font-weight:500; letter-spacing: 0.02em;">{cat}</div>' if cat else ''
 
         st.markdown(f"""
         <div style="background:#141417;border:0.5px solid rgba(255,255,255,0.07);border-radius:12px;padding:16px 20px;margin-bottom:12px;">
             <div style="display:flex;align-items:center;justify-content:space-between;margin-bottom:14px;">
-                <div style="font-family:Syne;font-size:12px;font-weight:700;color:#444440;letter-spacing:0.12em;text-transform:uppercase;">Today's Movement</div>
+                <div style="font-family:Inter, sans-serif;font-size:12px;font-weight:700;color:#444440;letter-spacing:0.12em;text-transform:uppercase;">Today's Movement</div>
                 {zone_badge_html}
             </div>
             <div style="display:grid;grid-template-columns:repeat(4,1fr);gap:10px;">
@@ -545,7 +545,7 @@ def render_overview():
         """, unsafe_allow_html=True)
 
     # Section F — Progressive Overload Alert
-    st.markdown('<div style="font-family:Syne;font-size:18px;font-weight:700;color:#F0EFE8;margin-bottom:12px;">Progressive Overload Tracking</div>', unsafe_allow_html=True)
+    st.markdown('<div style="font-family:Inter, sans-serif;font-size:18px;font-weight:700;color:#F0EFE8;margin-bottom:12px;">Progressive Overload Tracking</div>', unsafe_allow_html=True)
     all_workouts_data = fetch_workouts_cached(db)
     if all_workouts_data:
         df_vol = pd.DataFrame(all_workouts_data)
@@ -572,13 +572,13 @@ def render_overview():
                 st.markdown(f"""
                 <div style="padding:10px 16px;background:rgba(200,241,53,0.06);border:0.5px solid rgba(200,241,53,0.2);border-radius:8px;display:flex;align-items:center;gap:10px;margin:8px 0;">
                   <div style="width:8px;height:8px;border-radius:50%;background:#C8F135;flex-shrink:0;"></div>
-                  <span style="font-size:13px;color:#F0EFE8;font-family:DM Sans;">Volume up <strong style="color:#C8F135;">{diff_pct:.1f}%</strong> vs previous 7 days</span>
+                  <span style="font-size:13px;color:#F0EFE8;font-family:Inter, sans-serif;">Volume up <strong style="color:#C8F135;">{diff_pct:.1f}%</strong> vs previous 7 days</span>
                 </div>""", unsafe_allow_html=True)
             else:
                 st.markdown(f"""
                 <div style="padding:10px 16px;background:rgba(241,53,104,0.06);border:0.5px solid rgba(241,53,104,0.2);border-radius:8px;display:flex;align-items:center;gap:10px;margin:8px 0;">
                   <div style="width:8px;height:8px;border-radius:50%;background:#F13568;flex-shrink:0;"></div>
-                  <span style="font-size:13px;color:#F0EFE8;font-family:DM Sans;">Volume down <strong style="color:#F13568;">{abs(diff_pct):.1f}%</strong> vs previous 7 days</span>
+                  <span style="font-size:13px;color:#F0EFE8;font-family:Inter, sans-serif;">Volume down <strong style="color:#F13568;">{abs(diff_pct):.1f}%</strong> vs previous 7 days</span>
                 </div>""", unsafe_allow_html=True)
         else:
             st.info("Comparison not possible (previous week volume was 0).")
@@ -621,7 +621,7 @@ def render_overview():
 @st.fragment
 def render_data_manager():
     db = get_db()
-    st.markdown('<div style="font-family:Syne;font-size:26px;font-weight:800;color:#F0EFE8;letter-spacing:-0.04em;margin-bottom:4px;">Data Manager</div>', unsafe_allow_html=True)
+    st.markdown('<div style="font-family:Inter, sans-serif;font-size:26px;font-weight:800;color:#F0EFE8;letter-spacing:-0.04em;margin-bottom:4px;">Data Manager</div>', unsafe_allow_html=True)
     st.caption("Review and delete individual entries across all logs.")
 
     # Workout Entries
@@ -648,7 +648,7 @@ def render_data_manager():
                 selected_entry = df_full_sorted.iloc[selected_idx]
                 
                 st.markdown(f"""
-                <div style="background:rgba(241,53,104,0.08);border:0.5px solid rgba(241,53,104,0.2);border-radius:8px;padding:10px 14px;margin:8px 0;font-size:13px;color:#F13568;font-family:DM Sans;">
+                <div style="background:rgba(241,53,104,0.08);border:0.5px solid rgba(241,53,104,0.2);border-radius:8px;padding:10px 14px;margin:8px 0;font-size:13px;color:#F13568;font-family:Inter, sans-serif;">
                 Delete **{selected_entry['exercise']}** logged on {selected_entry['log_ts'].strftime('%Y-%m-%d %H:%M')}?</div>""", unsafe_allow_html=True)
                 
                 col1, col2 = st.columns([1, 6])
@@ -686,7 +686,7 @@ def render_data_manager():
                 selected_entry = df_full_sorted.iloc[selected_idx]
                 
                 st.markdown(f"""
-                <div style="background:rgba(241,53,104,0.08);border:0.5px solid rgba(241,53,104,0.2);border-radius:8px;padding:10px 14px;margin:8px 0;font-size:13px;color:#F13568;font-family:DM Sans;">
+                <div style="background:rgba(241,53,104,0.08);border:0.5px solid rgba(241,53,104,0.2);border-radius:8px;padding:10px 14px;margin:8px 0;font-size:13px;color:#F13568;font-family:Inter, sans-serif;">
                 Delete **{selected_entry['category']} {selected_entry['distance']}km** logged on {selected_entry['log_ts'].strftime('%Y-%m-%d %H:%M')}?</div>""", unsafe_allow_html=True)
                 
                 col1, col2 = st.columns([1, 6])
@@ -726,7 +726,7 @@ def render_data_manager():
                 selected_entry = df_full_sorted.iloc[selected_idx]
                 
                 st.markdown(f"""
-                <div style="background:rgba(241,53,104,0.08);border:0.5px solid rgba(241,53,104,0.2);border-radius:8px;padding:10px 14px;margin:8px 0;font-size:13px;color:#F13568;font-family:DM Sans;">
+                <div style="background:rgba(241,53,104,0.08);border:0.5px solid rgba(241,53,104,0.2);border-radius:8px;padding:10px 14px;margin:8px 0;font-size:13px;color:#F13568;font-family:Inter, sans-serif;">
                 Delete entry of **{selected_entry['calories']} kcal** logged on {selected_entry['log_ts'].strftime('%Y-%m-%d %H:%M')}?</div>""", unsafe_allow_html=True)
                 
                 col1, col2 = st.columns([1, 6])
@@ -764,7 +764,7 @@ def render_data_manager():
                 selected_entry = df_full_sorted.iloc[selected_idx]
                 
                 st.markdown(f"""
-                <div style="background:rgba(241,53,104,0.08);border:0.5px solid rgba(241,53,104,0.2);border-radius:8px;padding:10px 14px;margin:8px 0;font-size:13px;color:#F13568;font-family:DM Sans;">
+                <div style="background:rgba(241,53,104,0.08);border:0.5px solid rgba(241,53,104,0.2);border-radius:8px;padding:10px 14px;margin:8px 0;font-size:13px;color:#F13568;font-family:Inter, sans-serif;">
                 Delete weight entry of **{selected_entry['weight']} kg** logged on {selected_entry['log_ts'].strftime('%Y-%m-%d %H:%M')}?</div>""", unsafe_allow_html=True)
                 
                 col1, col2 = st.columns([1, 6])
@@ -780,11 +780,12 @@ def render_data_manager():
 
 def render_export_section():
     db = get_db()
-    st.markdown('<div style="font-family:Syne;font-size:22px;font-weight:700;color:#F0EFE8;margin-bottom:12px;">Export Data</div>', unsafe_allow_html=True)
+    st.markdown('<div style="font-family:Inter, sans-serif;font-size:22px;font-weight:700;color:#F0EFE8;margin-bottom:12px;">Export Data</div>', unsafe_allow_html=True)
 
-    col1, col2, col3 = st.columns(3)
+    # ปรับเป็น 4 คอลัมน์เพื่อเพิ่มพื้นที่ให้ปุ่ม Movement
+    col1, col2, col3, col4 = st.columns(4)
 
-    # Workouts
+    # 1. Workouts
     workouts = fetch_workouts_cached(db)
     if workouts:
         df = pd.DataFrame(workouts).drop(columns=["id"], errors="ignore")
@@ -796,7 +797,7 @@ def render_export_section():
             mime="text/csv"
         )
 
-    # Nutrition
+    # 2. Nutrition
     nutrition = fetch_nutrition_cached(db)
     if nutrition:
         df = pd.DataFrame(nutrition).drop(columns=["id"], errors="ignore")
@@ -808,7 +809,7 @@ def render_export_section():
             mime="text/csv"
         )
 
-    # Weight
+    # 3. Weight
     weight = fetch_weight_cached(db)
     if weight:
         df = pd.DataFrame(weight).drop(columns=["id"], errors="ignore")
@@ -817,5 +818,17 @@ def render_export_section():
             "Weight CSV",
             data=csv,
             file_name=f"weight_{datetime.now().strftime('%Y%m%d')}.csv",
+            mime="text/csv"
+        )
+
+    # 4. Movement / Runs (ส่วนที่เพิ่มเข้ามาใหม่)
+    runs = fetch_runs_cached(db)
+    if runs:
+        df = pd.DataFrame(runs).drop(columns=["id"], errors="ignore")
+        csv = df.to_csv(index=False).encode("utf-8")
+        col4.download_button(
+            "Movement CSV",
+            data=csv,
+            file_name=f"movement_{datetime.now().strftime('%Y%m%d')}.csv",
             mime="text/csv"
         )

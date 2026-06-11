@@ -11,7 +11,7 @@ def get_timestamp(log_date, log_time):
 @st.fragment
 def render_weight_form():
     db = get_db()
-    st.markdown('<div style="font-family:Syne;font-size:20px;font-weight:800;color:#F0EFE8;letter-spacing:-0.04em;margin-bottom:16px;">Weight Log</div>', unsafe_allow_html=True)
+    st.markdown('<div style="font-family:Inter, sans-serif;font-size:20px;font-weight:800;color:#F0EFE8;letter-spacing:-0.04em;margin-bottom:16px;">Weight Log</div>', unsafe_allow_html=True)
     form_key = f"draft_weight_{st.session_state.get('user_id', 'default')}"
 
     if "weight_draft_loaded" not in st.session_state:
@@ -109,7 +109,7 @@ def render_weight_form():
         date_str = st.session_state.get("weight_pending_date", "")
         st.markdown(f"""
         <div style="background:rgba(241,53,104,0.08);border:0.5px solid rgba(241,53,104,0.2);
-        border-radius:8px;padding:10px 14px;margin:8px 0;font-size:13px;color:#F13568;font-family:DM Sans;">
+        border-radius:8px;padding:10px 14px;margin:8px 0;font-size:13px;color:#F13568;font-family:Inter, sans-serif;">
         Duplicate entries found on {date_str}.</div>""", unsafe_allow_html=True)
         
         col1, col2, col3 = st.columns(3)
@@ -152,13 +152,13 @@ def process_pending_weight(db, session_state):
 
 def render_profile_form():
     db = get_db()
-    st.markdown('<div style="font-family:Syne;font-size:26px;font-weight:800;color:#F0EFE8;letter-spacing:-0.04em;margin-bottom:4px;">User Profile & Goals</div>', unsafe_allow_html=True)
+    st.markdown('<div style="font-family:Inter, sans-serif;font-size:26px;font-weight:800;color:#F0EFE8;letter-spacing:-0.04em;margin-bottom:4px;">User Profile & Goals</div>', unsafe_allow_html=True)
     st.caption("Your physical stats and nutrition goals. Used across all tabs.")
 
     profile = fetch_profile_cached(db) or {}
 
     with st.form("profile_form"):
-        st.markdown('<div style="font-family:DM Sans;font-size:10px;color:#444440;letter-spacing:0.2em;text-transform:uppercase;margin:16px 0 10px;">Physical Stats</div>', unsafe_allow_html=True)
+        st.markdown('<div style="font-family:Inter, sans-serif;font-size:10px;color:#444440;letter-spacing:0.2em;text-transform:uppercase;margin:16px 0 10px;">Physical Stats</div>', unsafe_allow_html=True)
         c1, c2, c3 = st.columns(3)
         weight_kg = c1.number_input(
             "Current Weight (kg)", min_value=0.0, step=0.1,
@@ -181,26 +181,26 @@ def render_profile_form():
             
             mc1.markdown(f"""
             <div style="background:#141417;border:0.5px solid rgba(255,255,255,0.07);border-radius:10px;padding:14px;">
-              <div style="font-family:DM Sans;font-size:10px;color:#888880;text-transform:uppercase;letter-spacing:0.04em;margin-bottom:4px;">BMI</div>
-              <div style="font-family:Syne;font-size:22px;font-weight:700;color:#F0EFE8;">{bmi:.1f}</div>
+              <div style="font-family:Inter, sans-serif;font-size:10px;color:#888880;text-transform:uppercase;letter-spacing:0.04em;margin-bottom:4px;">BMI</div>
+              <div style="font-family:Inter, sans-serif;font-size:22px;font-weight:700;color:#F0EFE8;">{bmi:.1f}</div>
             </div>""", unsafe_allow_html=True)
             
             if lean_mass:
                 mc2.markdown(f"""
                 <div style="background:#141417;border:0.5px solid rgba(255,255,255,0.07);border-radius:10px;padding:14px;">
-                  <div style="font-family:DM Sans;font-size:10px;color:#888880;text-transform:uppercase;letter-spacing:0.04em;margin-bottom:4px;">Lean Mass</div>
-                  <div style="font-family:Syne;font-size:22px;font-weight:700;color:#F0EFE8;">{lean_mass:.1f} kg</div>
+                  <div style="font-family:Inter, sans-serif;font-size:10px;color:#888880;text-transform:uppercase;letter-spacing:0.04em;margin-bottom:4px;">Lean Mass</div>
+                  <div style="font-family:Inter, sans-serif;font-size:22px;font-weight:700;color:#F0EFE8;">{lean_mass:.1f} kg</div>
                 </div>""", unsafe_allow_html=True)
 
         st.divider()
-        st.markdown('<div style="font-family:DM Sans;font-size:10px;color:#444440;letter-spacing:0.2em;text-transform:uppercase;margin:16px 0 10px;">Goals</div>', unsafe_allow_html=True)
+        st.markdown('<div style="font-family:Inter, sans-serif;font-size:10px;color:#444440;letter-spacing:0.2em;text-transform:uppercase;margin:16px 0 10px;">Goals</div>', unsafe_allow_html=True)
         g1, g2 = st.columns(2)
         goal_weight = g1.number_input(
             "Target Weight (kg)", min_value=0.0, step=0.1,
             value=float(profile.get("goal_weight_kg") or 0.0)
         )
 
-        st.markdown('<div style="font-family:DM Sans;font-size:10px;color:#444440;letter-spacing:0.2em;text-transform:uppercase;margin:12px 0 8px;">Daily Nutrition Goals</div>', unsafe_allow_html=True)
+        st.markdown('<div style="font-family:Inter, sans-serif;font-size:10px;color:#444440;letter-spacing:0.2em;text-transform:uppercase;margin:12px 0 8px;">Daily Nutrition Goals</div>', unsafe_allow_html=True)
         n1, n2, n3, n4 = st.columns(4)
         goal_cal = n1.number_input(
             "Calories (kcal)", min_value=0, step=50,
@@ -220,7 +220,7 @@ def render_profile_form():
         )
 
         st.divider()
-        st.markdown('<div style="font-family:DM Sans;font-size:10px;color:#444440;letter-spacing:0.2em;text-transform:uppercase;margin:16px 0 10px;">Default Supplements</div>', unsafe_allow_html=True)
+        st.markdown('<div style="font-family:Inter, sans-serif;font-size:10px;color:#444440;letter-spacing:0.2em;text-transform:uppercase;margin:16px 0 10px;">Default Supplements</div>', unsafe_allow_html=True)
         st.caption("These will be pre-checked in the Nutrition form every day.")
 
         sup_display_names = [display for json_key, (display, sess_key, db_col) in SUPPLEMENT_MAP.items()]

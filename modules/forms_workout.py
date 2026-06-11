@@ -76,7 +76,7 @@ def _build_workout_snapshot(plan_name, plan_obj, log_date, log_time, state):
 @st.fragment
 def render_plan_builder():
     db = get_db()
-    st.markdown('<div style="font-family:Syne;font-size:26px;font-weight:800;color:#F0EFE8;letter-spacing:-0.04em;margin-bottom:4px;">Training Plan Builder</div>', unsafe_allow_html=True)
+    st.markdown('<div style="font-family:Inter, sans-serif;font-size:26px;font-weight:800;color:#F0EFE8;letter-spacing:-0.04em;margin-bottom:4px;">Training Plan Builder</div>', unsafe_allow_html=True)
     st.info("Define recurring training templates. Plans are stored in Supabase.")
     
     # Detect edit mode
@@ -159,7 +159,7 @@ def render_plan_builder():
                 st.rerun()
 
     # 2. Existing Plans Management
-    st.markdown('<div style="font-family:Syne;font-size:20px;font-weight:700;color:#F0EFE8;margin-bottom:12px;">Active Plans</div>', unsafe_allow_html=True)
+    st.markdown('<div style="font-family:Inter, sans-serif;font-size:20px;font-weight:700;color:#F0EFE8;margin-bottom:12px;">Active Plans</div>', unsafe_allow_html=True)
     plans = fetch_plans_cached(db)
     if plans:
         for p in plans:
@@ -167,10 +167,10 @@ def render_plan_builder():
             st.markdown(f"""
             <div style="background:#141417;border:0.5px solid rgba(255,255,255,0.07);
             border-radius:10px;padding:14px 16px;margin-bottom:6px;">
-              <div style="font-family:Syne;font-size:15px;font-weight:700;
+              <div style="font-family:Inter, sans-serif;font-size:15px;font-weight:700;
               color:#F0EFE8;">{p['name']}</div>
               <div style="font-size:11px;color:#888880;margin-top:4px;
-              font-family:DM Sans;">{ex_list}</div>
+              font-family:Inter, sans-serif;">{ex_list}</div>
             </div>""", unsafe_allow_html=True)
             
             c2, c3 = st.columns([1, 1])
@@ -194,7 +194,7 @@ def render_plan_builder():
 @st.fragment
 def render_workout_form():
     db = get_db()
-    st.markdown('<div style="font-family:Syne;font-size:20px;font-weight:800;color:#F0EFE8;letter-spacing:-0.04em;margin-bottom:16px;">Training Logger</div>', unsafe_allow_html=True)
+    st.markdown('<div style="font-family:Inter, sans-serif;font-size:20px;font-weight:800;color:#F0EFE8;letter-spacing:-0.04em;margin-bottom:16px;">Training Logger</div>', unsafe_allow_html=True)
 
     plans = fetch_plans_cached(db)
     if not plans:
@@ -327,7 +327,7 @@ def render_workout_form():
     with r1_c2:
         l_time = st.text_input("Time (HH:MM)", key="work_time", on_change=save_workout_draft)
     with r1_c3:
-        st.markdown('<div style="font-size:14px; color:#F0EFE8; margin-bottom:8px; font-family:DM Sans;">Quick Set Time</div>', unsafe_allow_html=True)
+        st.markdown('<div style="font-size:14px; color:#F0EFE8; margin-bottom:8px; font-family:Inter, sans-serif;">Quick Set Time</div>', unsafe_allow_html=True)
         st.button("Now", key="work_now_btn", use_container_width=True, on_click=set_work_time_to_now)
 
     selected_plan_name = st.selectbox("Select Training Plan", plan_names, key="work_plan_name", on_change=on_plan_change)
@@ -395,7 +395,7 @@ def render_workout_form():
         st.markdown(f"""
         <div style="display:flex;align-items:center;justify-content:space-between;
         padding:12px 0 6px;border-top:0.5px solid rgba(255,255,255,0.07);">
-          <span style="font-family:Syne;font-size:15px;font-weight:700;
+          <span style="font-family:Inter, sans-serif;font-size:15px;font-weight:700;
           color:#F0EFE8;letter-spacing:-0.02em;">{ex_n}</span>
           <span style="font-size:10px;padding:3px 8px;border-radius:4px;
           font-weight:600;letter-spacing:0.06em;text-transform:uppercase;
@@ -411,9 +411,9 @@ def render_workout_form():
                 if ex_t == "Timed": h_details.append(f"{h['duration_sec']}s")
                 elif ex_t == "Bodyweight": h_details.append(f"{h['reps']}r")
                 else: h_details.append(f"{h['weight']}kg x {h['reps']}")
-            st.markdown(f'<div style="font-size:11px;color:#444440;margin-bottom:8px;padding-left:4px;font-family:DM Sans;">Last {h_date}: {" | ".join(h_details)}</div>', unsafe_allow_html=True)
+            st.markdown(f'<div style="font-size:11px;color:#444440;margin-bottom:8px;padding-left:4px;font-family:Inter, sans-serif;">Last {h_date}: {" | ".join(h_details)}</div>', unsafe_allow_html=True)
         else:
-            st.markdown(f'<div style="font-size:11px;color:#444440;margin-bottom:8px;padding-left:4px;font-family:DM Sans;">No history for this exercise.</div>', unsafe_allow_html=True)
+            st.markdown(f'<div style="font-size:11px;color:#444440;margin-bottom:8px;padding-left:4px;font-family:Inter, sans-serif;">No history for this exercise.</div>', unsafe_allow_html=True)
 
         # --- Volume Delta Calculation ---
         # Current session volume
@@ -451,8 +451,8 @@ def render_workout_form():
             color = "#C8F135" if delta_pct >= 0 else "#F13568"
             st.markdown(f"""
             <div style="font-size:11px;color:#888880;margin:4px 0 10px;
-            font-family:DM Sans;">Volume <strong style="color:#F0EFE8;
-            font-family:Syne;">{curr_vol:.0f} kg</strong>
+            font-family:Inter, sans-serif;">Volume <strong style="color:#F0EFE8;
+            font-family:Inter, sans-serif;">{curr_vol:.0f} kg</strong>
             <span style="color:{color};">{arrow} {abs(delta_pct):.1f}%</span>
             vs last session</div>""", unsafe_allow_html=True)
 
@@ -485,7 +485,7 @@ def render_workout_form():
                     last_w = st.session_state.get(f"work_last_w_{i}_{s}", 0.0)
                     last_r = st.session_state.get(f"work_last_r_{i}_{s}", 0)
                     if (w > last_w or r > last_r) and (last_w > 0 or last_r > 0):
-                        cols[3].markdown('<span style="font-size:10px;background:rgba(200,241,53,0.12);color:#C8F135;padding:2px 6px;border-radius:4px;font-weight:700;font-family:DM Sans;">PR</span>', unsafe_allow_html=True)
+                        cols[3].markdown('<span style="font-size:10px;background:rgba(200,241,53,0.12);color:#C8F135;padding:2px 6px;border-radius:4px;font-weight:700;font-family:Inter, sans-serif;">PR</span>', unsafe_allow_html=True)
                     
                     cols[4].checkbox("Done", label_visibility="collapsed", key=f"work_done_{i}_{s}")
                     if nsets > 1:
@@ -506,7 +506,7 @@ def render_workout_form():
                     # PR Check
                     last_d = st.session_state.get(f"work_last_d_{i}_{s}", 0)
                     if d > last_d and last_d > 0:
-                        cols[2].markdown('<span style="font-size:10px;background:rgba(200,241,53,0.12);color:#C8F135;padding:2px 6px;border-radius:4px;font-weight:700;font-family:DM Sans;">PR</span>', unsafe_allow_html=True)
+                        cols[2].markdown('<span style="font-size:10px;background:rgba(200,241,53,0.12);color:#C8F135;padding:2px 6px;border-radius:4px;font-weight:700;font-family:Inter, sans-serif;">PR</span>', unsafe_allow_html=True)
 
                     cols[3].checkbox("Done", label_visibility="collapsed", key=f"work_done_{i}_{s}")
                     if nsets > 1:
@@ -524,7 +524,7 @@ def render_workout_form():
                     # PR Check
                     last_r = st.session_state.get(f"work_last_r_{i}_{s}", 0)
                     if r > last_r and last_r > 0:
-                        cols[2].markdown('<span style="font-size:10px;background:rgba(200,241,53,0.12);color:#C8F135;padding:2px 6px;border-radius:4px;font-weight:700;font-family:DM Sans;">PR</span>', unsafe_allow_html=True)
+                        cols[2].markdown('<span style="font-size:10px;background:rgba(200,241,53,0.12);color:#C8F135;padding:2px 6px;border-radius:4px;font-weight:700;font-family:Inter, sans-serif;">PR</span>', unsafe_allow_html=True)
 
                     cols[3].checkbox("Done", label_visibility="collapsed", key=f"work_done_{i}_{s}")
                     if nsets > 1:
@@ -557,7 +557,7 @@ def render_workout_form():
     st.markdown("""<style>
     div:has(> button[key="save_workout_btn"]) > button {
       background: #C8F135 !important; color: #0D0D0F !important;
-      font-family: Syne !important; font-weight: 800 !important;
+      font-family: 'Inter', sans-serif !important; font-weight: 800 !important;
       border: none !important; width: 100%;
     }
     </style>""", unsafe_allow_html=True)
@@ -609,7 +609,7 @@ def render_workout_form():
         date_str = st.session_state.get("workout_pending_date", "")
         st.markdown(f"""
         <div style="background:rgba(241,53,104,0.08);border:0.5px solid rgba(241,53,104,0.2);
-        border-radius:8px;padding:10px 14px;margin:8px 0;font-size:13px;color:#F13568;font-family:DM Sans;">
+        border-radius:8px;padding:10px 14px;margin:8px 0;font-size:13px;color:#F13568;font-family:Inter, sans-serif;">
         Duplicate entries found on {date_str}.</div>""", unsafe_allow_html=True)
         
         col1, col2, col3 = st.columns(3)
@@ -684,7 +684,7 @@ def render_today_training_summary():
     rows = summary["work"]
 
     if not rows:
-        st.markdown('<div style="background:#141417;border:0.5px solid rgba(255,255,255,0.07);border-radius:12px;padding:16px 20px;margin-bottom:12px;"><div style="font-family:Syne;font-size:12px;font-weight:700;color:#444440;letter-spacing:0.12em;text-transform:uppercase;margin-bottom:12px;">Today Training</div><div style="font-size:13px;color:#444440;font-family:DM Sans;">No training logged today.</div></div>', unsafe_allow_html=True)
+        st.markdown('<div style="background:#141417;border:0.5px solid rgba(255,255,255,0.07);border-radius:12px;padding:16px 20px;margin-bottom:12px;"><div style="font-family:Inter, sans-serif;font-size:12px;font-weight:700;color:#444440;letter-spacing:0.12em;text-transform:uppercase;margin-bottom:12px;">Today Training</div><div style="font-size:13px;color:#444440;font-family:Inter, sans-serif;">No training logged today.</div></div>', unsafe_allow_html=True)
         return
 
     df = pd.DataFrame(rows)
@@ -703,9 +703,9 @@ def render_today_training_summary():
 
     rows_html = ""
     for _, row in breakdown.iterrows():
-        rows_html += f'<div style="display:grid;grid-template-columns:2fr 1fr 1fr 1fr;gap:8px;padding:8px 0;border-top:0.5px solid rgba(255,255,255,0.05);align-items:center;"><div style="font-size:13px;color:#F0EFE8;font-family:DM Sans;">{row["exercise"]}</div><div style="font-size:12px;color:#888880;font-family:DM Sans;text-align:right;">{int(row["Sets"])} sets</div><div style="font-size:12px;color:#C8F135;font-family:DM Sans;text-align:right;">{row["Volume"]:,.0f} kg</div><div style="font-size:12px;color:#888880;font-family:DM Sans;text-align:right;">RPE {row["RPE"]:.1f}</div></div>'
+        rows_html += f'<div style="display:grid;grid-template-columns:2fr 1fr 1fr 1fr;gap:8px;padding:8px 0;border-top:0.5px solid rgba(255,255,255,0.05);align-items:center;"><div style="font-size:13px;color:#F0EFE8;font-family:Inter, sans-serif;">{row["exercise"]}</div><div style="font-size:12px;color:#888880;font-family:Inter, sans-serif;text-align:right;">{int(row["Sets"])} sets</div><div style="font-size:12px;color:#C8F135;font-family:Inter, sans-serif;text-align:right;">{row["Volume"]:,.0f} kg</div><div style="font-size:12px;color:#888880;font-family:Inter, sans-serif;text-align:right;">RPE {row["RPE"]:.1f}</div></div>'
 
-    st.markdown(f'<div style="background:#141417;border:0.5px solid rgba(255,255,255,0.07);border-radius:12px;padding:16px 20px;margin-bottom:12px;"><div style="font-family:Syne;font-size:12px;font-weight:700;color:#444440;letter-spacing:0.12em;text-transform:uppercase;margin-bottom:14px;">Today Training</div><div style="display:flex;justify-content:space-between;align-items:flex-end;margin-bottom:14px;padding-bottom:14px;border-bottom:0.5px solid rgba(255,255,255,0.07);"><div><div style="font-size:10px;color:#888880;font-family:DM Sans;text-transform:uppercase;letter-spacing:0.1em;margin-bottom:4px;">Total Volume</div><div style="font-family:Syne;font-size:28px;font-weight:800;color:#C8F135;letter-spacing:-0.04em;line-height:1;">{total_volume:,.0f}<span style="font-size:13px;color:#888880;font-weight:400;">kg</span></div></div><div style="text-align:right;"><div style="font-size:10px;color:#888880;font-family:DM Sans;text-transform:uppercase;letter-spacing:0.1em;margin-bottom:4px;">Avg RPE</div><div style="font-family:Syne;font-size:22px;font-weight:700;color:#F0EFE8;">{avg_rpe:.1f}</div></div></div><div style="font-size:10px;color:#555552;font-family:DM Sans;text-transform:uppercase;letter-spacing:0.1em;margin-bottom:4px;display:grid;grid-template-columns:2fr 1fr 1fr 1fr;gap:8px;"><div>Exercise</div><div style="text-align:right;">Sets</div><div style="text-align:right;">Volume</div><div style="text-align:right;">RPE</div></div>{rows_html}</div>', unsafe_allow_html=True)
+    st.markdown(f'<div style="background:#141417;border:0.5px solid rgba(255,255,255,0.07);border-radius:12px;padding:16px 20px;margin-bottom:12px;"><div style="font-family:Inter, sans-serif;font-size:12px;font-weight:700;color:#444440;letter-spacing:0.12em;text-transform:uppercase;margin-bottom:14px;">Today Training</div><div style="display:flex;justify-content:space-between;align-items:flex-end;margin-bottom:14px;padding-bottom:14px;border-bottom:0.5px solid rgba(255,255,255,0.07);"><div><div style="font-size:10px;color:#888880;font-family:Inter, sans-serif;text-transform:uppercase;letter-spacing:0.1em;margin-bottom:4px;">Total Volume</div><div style="font-family:Inter, sans-serif;font-size:28px;font-weight:800;color:#C8F135;letter-spacing:-0.04em;line-height:1;">{total_volume:,.0f}<span style="font-size:13px;color:#888880;font-weight:400;">kg</span></div></div><div style="text-align:right;"><div style="font-size:10px;color:#888880;font-family:Inter, sans-serif;text-transform:uppercase;letter-spacing:0.1em;margin-bottom:4px;">Avg RPE</div><div style="font-family:Inter, sans-serif;font-size:22px;font-weight:700;color:#F0EFE8;">{avg_rpe:.1f}</div></div></div><div style="font-size:10px;color:#555552;font-family:Inter, sans-serif;text-transform:uppercase;letter-spacing:0.1em;margin-bottom:4px;display:grid;grid-template-columns:2fr 1fr 1fr 1fr;gap:8px;"><div>Exercise</div><div style="text-align:right;">Sets</div><div style="text-align:right;">Volume</div><div style="text-align:right;">RPE</div></div>{rows_html}</div>', unsafe_allow_html=True)
 
 def render_exercise_history_card():
     import pandas as pd
@@ -713,7 +713,7 @@ def render_exercise_history_card():
     
     db = get_db()
     
-    st.markdown('<div style="font-family:Syne;font-size:26px;font-weight:800;color:#F0EFE8;letter-spacing:-0.04em;margin-bottom:4px;">Exercise History</div>', unsafe_allow_html=True)
+    st.markdown('<div style="font-family:Inter, sans-serif;font-size:26px;font-weight:800;color:#F0EFE8;letter-spacing:-0.04em;margin-bottom:4px;">Exercise History</div>', unsafe_allow_html=True)
     
     # 1. Fetch active workout templates/plans from database
     active_plans = db.fetch_plans()
@@ -756,7 +756,7 @@ def render_exercise_history_card():
         st.error("Selected plan not found.")
         return
 
-    st.markdown(f'<div style="font-family:Syne;font-size:20px;font-weight:700;color:#F0EFE8;margin-bottom:12px;">Training Plan: {selected_plan_name}</div>', unsafe_allow_html=True)
+    st.markdown(f'<div style="font-family:Inter, sans-serif;font-size:20px;font-weight:700;color:#F0EFE8;margin-bottom:12px;">Training Plan: {selected_plan_name}</div>', unsafe_allow_html=True)
     
     plan_exercises = selected_plan.get('exercises', [])
     if not plan_exercises:
@@ -826,7 +826,7 @@ def render_exercise_history_card():
             <div style="background:#141417;border:0.5px solid rgba(255,255,255,0.07);
             border-radius:10px;padding:12px 14px;margin-bottom:6px;">
               <div style="display:flex;align-items:center;justify-content:space-between;margin-bottom:8px;">
-                <span style="font-family:Syne;font-size:14px;font-weight:700;color:#F0EFE8;">{ex_name}</span>
+                <span style="font-family:Inter, sans-serif;font-size:14px;font-weight:700;color:#F0EFE8;">{ex_name}</span>
                 <span style="font-size:10px;padding:3px 8px;border-radius:4px;{type_badge_style}">{ex_type}</span>
               </div>
               <div style="font-size:11px;color:#888880;margin-bottom:6px;">Latest: {date_str}</div>

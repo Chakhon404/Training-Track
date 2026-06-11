@@ -13,7 +13,7 @@ def get_timestamp(log_date, log_time_str):
 @st.fragment
 def render_biohack_form():
     db = get_db()
-    st.markdown('<div style="font-family:Syne;font-size:20px;font-weight:800;color:#F0EFE8;letter-spacing:-0.04em;margin-bottom:16px;">Nutrition Log</div>', unsafe_allow_html=True)
+    st.markdown('<div style="font-family:Inter, sans-serif;font-size:20px;font-weight:800;color:#F0EFE8;letter-spacing:-0.04em;margin-bottom:16px;">Nutrition Log</div>', unsafe_allow_html=True)
     form_key = f"draft_nutrition_{st.session_state.get('user_id', 'default')}"
 
     # Determine if today already has a saved nutrition entry
@@ -190,7 +190,7 @@ def render_biohack_form():
     with r1_c2:
         l_time = st.text_input("Time (HH:MM)", key="nut_time", on_change=save_nut_draft)
     with r1_c3:
-        st.markdown('<div style="font-size:14px; color:#F0EFE8; margin-bottom:8px; font-family:DM Sans;">Quick Set Time</div>', unsafe_allow_html=True)
+        st.markdown('<div style="font-size:14px; color:#F0EFE8; margin-bottom:8px; font-family:Inter, sans-serif;">Quick Set Time</div>', unsafe_allow_html=True)
         st.button("Now", key="nut_now_btn", use_container_width=True, on_click=set_nut_time_to_now)
 
     food_name = st.text_input(
@@ -200,7 +200,7 @@ def render_biohack_form():
         on_change=save_nut_draft
     )
 
-    st.markdown('<div style="font-family:Syne;font-size:18px;font-weight:700;color:#F0EFE8;margin-bottom:12px;">Supplements</div>', unsafe_allow_html=True)
+    st.markdown('<div style="font-family:Inter, sans-serif;font-size:18px;font-weight:700;color:#F0EFE8;margin-bottom:12px;">Supplements</div>', unsafe_allow_html=True)
 
     # Load profile supplements
     profile = fetch_profile_cached(db) or {}
@@ -232,7 +232,7 @@ def render_biohack_form():
         st.markdown('</div>', unsafe_allow_html=True)
 
     st.divider()
-    st.markdown('<div style="font-family:DM Sans;font-size:10px;color:#444440;letter-spacing:0.2em;text-transform:uppercase;margin:12px 0 8px;">Energy & Macros</div>', unsafe_allow_html=True)
+    st.markdown('<div style="font-family:Inter, sans-serif;font-size:10px;color:#444440;letter-spacing:0.2em;text-transform:uppercase;margin:12px 0 8px;">Energy & Macros</div>', unsafe_allow_html=True)
     n1, n2, n3, n4 = st.columns(4)
     cal = n1.number_input("Calories", min_value=0, step=50, key="nut_cal", on_change=save_nut_draft)
     p_g = n2.number_input("Protein (g)", min_value=0, step=1, key="nut_pg", on_change=save_nut_draft)
@@ -240,7 +240,7 @@ def render_biohack_form():
     f_g = n4.number_input("Fat (g)", min_value=0, step=1, key="nut_fg", on_change=save_nut_draft)
 
     st.divider()
-    st.markdown('<div style="font-size:11px;color:#888880;margin-top:8px;font-family:DM Sans;letter-spacing:0.04em;text-transform:uppercase;">Meal Score</div>', unsafe_allow_html=True)
+    st.markdown('<div style="font-size:11px;color:#888880;margin-top:8px;font-family:Inter, sans-serif;letter-spacing:0.04em;text-transform:uppercase;">Meal Score</div>', unsafe_allow_html=True)
     meal_score = st.slider(
         "Rate today's nutrition (1 = terrible, 10 = perfect)",
         min_value=1, max_value=10,
