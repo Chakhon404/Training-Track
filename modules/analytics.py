@@ -543,6 +543,14 @@ def render_overview():
             </div>
         </div>
         """, unsafe_allow_html=True)
+    else:
+        # เพิ่มส่วนนี้เข้าไป เพื่อให้โชว์กล่อง "No movement logged today" ในวันที่ไม่มีการวิ่ง
+        st.markdown("""
+        <div style="background:#141417;border:0.5px solid rgba(255,255,255,0.07);border-radius:12px;padding:16px 20px;margin-bottom:12px;">
+            <div style="font-family:Inter, sans-serif;font-size:12px;font-weight:700;color:#444440;letter-spacing:0.12em;text-transform:uppercase;margin-bottom:12px;">Today's Movement</div>
+            <div style="font-size:13px;color:#444440;font-family:Inter, sans-serif;">No movement logged today.</div>
+        </div>
+        """, unsafe_allow_html=True)
 
     # Section F — Progressive Overload Alert
     st.markdown('<div style="font-family:Inter, sans-serif;font-size:18px;font-weight:700;color:#F0EFE8;margin-bottom:12px;">Progressive Overload Tracking</div>', unsafe_allow_html=True)

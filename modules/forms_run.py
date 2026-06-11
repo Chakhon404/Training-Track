@@ -146,6 +146,7 @@ def render_running_form():
                     "duration": dur,
                     "pace": pace_s,
                     "hr": hr,
+                    "hrr": 0,
                     "category": cat
                     # ลบ hrr ออกจาก Dictionary ที่ส่งเข้า Database
                 }
