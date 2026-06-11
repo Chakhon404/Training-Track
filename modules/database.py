@@ -32,7 +32,7 @@ class TrainingDB:
         if not self.is_connected(): return None
         try:
             response = self.supabase.table("training_plans").insert(plan_data).execute()
-            st.cache_data.clear()
+            fetch_plans_cached.clear()
             return response.data
         except Exception as e:
             logger.error(f"[TrainingDB.add_plan] {e}", exc_info=True)
@@ -43,7 +43,7 @@ class TrainingDB:
         if not self.is_connected(): return None
         try:
             response = self.supabase.table("training_plans").delete().eq("id", plan_id).execute()
-            st.cache_data.clear()
+            fetch_plans_cached.clear()
             return response.data
         except Exception as e:
             logger.error(f"[TrainingDB.delete_plan] {e}", exc_info=True)
@@ -58,7 +58,7 @@ class TrainingDB:
                 .update(plan_data)\
                 .eq("id", plan_id)\
                 .execute()
-            st.cache_data.clear()
+            fetch_plans_cached.clear()
             return True
         except Exception as e:
             logger.error(f"[TrainingDB.update_plan] {e}", exc_info=True)
@@ -69,7 +69,9 @@ class TrainingDB:
         if not self.is_connected(): return False
         try:
             self.supabase.table("workouts").insert(workout_data).execute()
-            st.cache_data.clear()
+            fetch_workouts_cached.clear()
+            fetch_last_session_cached.clear()
+            fetch_today_summary_cached.clear()
             return True
         except Exception as e:
             logger.error(f"[TrainingDB.save_workout] {e}", exc_info=True)
@@ -89,7 +91,8 @@ class TrainingDB:
         if not self.is_connected(): return False
         try:
             self.supabase.table("running").insert(run_data).execute()
-            st.cache_data.clear()
+            fetch_runs_cached.clear()
+            fetch_today_summary_cached.clear()
             return True
         except Exception as e:
             logger.error(f"[TrainingDB.save_run] {e}", exc_info=True)
@@ -109,7 +112,8 @@ class TrainingDB:
         if not self.is_connected(): return False
         try:
             self.supabase.table("nutrition").insert(nutrition_data).execute()
-            st.cache_data.clear()
+            fetch_nutrition_cached.clear()
+            fetch_today_summary_cached.clear()
             return True
         except Exception as e:
             logger.error(f"[TrainingDB.save_nutrition] {e}", exc_info=True)
@@ -129,7 +133,8 @@ class TrainingDB:
         if not self.is_connected(): return False
         try:
             self.supabase.table("weight").insert(weight_data).execute()
-            st.cache_data.clear()
+            fetch_weight_cached.clear()
+            fetch_today_summary_cached.clear()
             return True
         except Exception as e:
             logger.error(f"[TrainingDB.save_weight] {e}", exc_info=True)
@@ -334,7 +339,9 @@ class TrainingDB:
                 .gte("log_ts", f"{date}T00:00:00")\
                 .lte("log_ts", f"{date}T23:59:59")\
                 .execute()
-            st.cache_data.clear()
+            fetch_workouts_cached.clear()
+            fetch_last_session_cached.clear()
+            fetch_today_summary_cached.clear()
             return response
         except Exception as e:
             logger.error(f"[TrainingDB.delete_workouts_by_date] {e}", exc_info=True)
@@ -348,7 +355,8 @@ class TrainingDB:
                 .gte("log_ts", f"{date}T00:00:00")\
                 .lte("log_ts", f"{date}T23:59:59")\
                 .execute()
-            st.cache_data.clear()
+            fetch_runs_cached.clear()
+            fetch_today_summary_cached.clear()
             return response
         except Exception as e:
             logger.error(f"[TrainingDB.delete_runs_by_date] {e}", exc_info=True)
@@ -362,7 +370,8 @@ class TrainingDB:
                 .gte("log_ts", f"{date}T00:00:00")\
                 .lte("log_ts", f"{date}T23:59:59")\
                 .execute()
-            st.cache_data.clear()
+            fetch_nutrition_cached.clear()
+            fetch_today_summary_cached.clear()
             return response
         except Exception as e:
             logger.error(f"[TrainingDB.delete_nutrition_by_date] {e}", exc_info=True)
@@ -376,7 +385,8 @@ class TrainingDB:
                 .gte("log_ts", f"{date}T00:00:00")\
                 .lte("log_ts", f"{date}T23:59:59")\
                 .execute()
-            st.cache_data.clear()
+            fetch_weight_cached.clear()
+            fetch_today_summary_cached.clear()
             return response
         except Exception as e:
             logger.error(f"[TrainingDB.delete_weight_by_date] {e}", exc_info=True)
@@ -389,7 +399,9 @@ class TrainingDB:
         if not self.is_connected(): return None
         try:
             response = self.supabase.table("workouts").delete().eq("id", entry_id).execute()
-            st.cache_data.clear()
+            fetch_workouts_cached.clear()
+            fetch_last_session_cached.clear()
+            fetch_today_summary_cached.clear()
             return response
         except Exception as e:
             logger.error(f"[TrainingDB.delete_workout_by_id] {e}", exc_info=True)
@@ -400,7 +412,8 @@ class TrainingDB:
         if not self.is_connected(): return None
         try:
             response = self.supabase.table("running").delete().eq("id", entry_id).execute()
-            st.cache_data.clear()
+            fetch_runs_cached.clear()
+            fetch_today_summary_cached.clear()
             return response
         except Exception as e:
             logger.error(f"[TrainingDB.delete_run_by_id] {e}", exc_info=True)
@@ -411,7 +424,8 @@ class TrainingDB:
         if not self.is_connected(): return None
         try:
             response = self.supabase.table("nutrition").delete().eq("id", entry_id).execute()
-            st.cache_data.clear()
+            fetch_nutrition_cached.clear()
+            fetch_today_summary_cached.clear()
             return response
         except Exception as e:
             logger.error(f"[TrainingDB.delete_nutrition_by_id] {e}", exc_info=True)
@@ -422,7 +436,8 @@ class TrainingDB:
         if not self.is_connected(): return None
         try:
             response = self.supabase.table("weight").delete().eq("id", entry_id).execute()
-            st.cache_data.clear()
+            fetch_weight_cached.clear()
+            fetch_today_summary_cached.clear()
             return response
         except Exception as e:
             logger.error(f"[TrainingDB.delete_weight_by_id] {e}", exc_info=True)
@@ -549,7 +564,7 @@ class TrainingDB:
                     .execute()
             else:
                 self.supabase.table("user_profile").insert(profile_data).execute()
-            st.cache_data.clear()
+            fetch_profile_cached.clear()
             return True
         except Exception as e:
             logger.error(f"[TrainingDB.save_profile] {e}", exc_info=True)
@@ -561,7 +576,7 @@ class TrainingDB:
         if not self.is_connected(): return False
         try:
             self.supabase.table("wellness").upsert(payload, on_conflict="log_date").execute()
-            st.cache_data.clear()
+            fetch_wellness_cached.clear()
             return True
         except Exception as e:
             logger.error(f"[TrainingDB.save_wellness] {e}", exc_info=True)
