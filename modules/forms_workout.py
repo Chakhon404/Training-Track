@@ -9,14 +9,57 @@ from modules.database import get_db, fetch_profile_cached, fetch_workouts_cached
 def get_timestamp(log_date, log_time_str):
     return f"{log_date} {log_time_str}:00"
 
-def _build_workout_rows(plan_obj, session_state, log_ts, plan_name, bodyweight_kg):
+def _make_remove_adhoc_set_cb(ex_type, idx, set_idx, nsets):
+    def cb():
+        for ss in range(set_idx, nsets - 1):
+            if ex_type == "Heavy":
+                st.session_state[f"work_w_{idx}_{ss}"] = st.session_state.get(f"work_w_{idx}_{ss+1}", 0.0)
+                st.session_state[f"work_r_{idx}_{ss}"] = st.session_state.get(f"work_r_{idx}_{ss+1}", 0)
+                st.session_state[f"work_done_{idx}_{ss}"] = st.session_state.get(f"work_done_{idx}_{ss+1}", False)
+            elif ex_type == "Timed":
+                st.session_state[f"work_d_{idx}_{ss}"] = st.session_state.get(f"work_d_{idx}_{ss+1}", 0)
+                st.session_state[f"work_done_{idx}_{ss}"] = st.session_state.get(f"work_done_{idx}_{ss+1}", False)
+            else:  # Bodyweight
+                st.session_state[f"work_r_{idx}_{ss}"] = st.session_state.get(f"work_r_{idx}_{ss+1}", 0)
+                st.session_state[f"work_done_{idx}_{ss}"] = st.session_state.get(f"work_done_{idx}_{ss+1}", False)
+        st.session_state[f"work_nsets_{idx}"] -= 1
+    return cb
+
+def _get_last_session_by_exercise_name(all_workouts: list, exercise_name: str) -> list:
+    """
+    From the full workouts list (already fetched), find the most recent session
+    for a given exercise name. Returns list of set dicts sorted by set_number.
+    """
+    import pandas as pd
+    if not all_workouts:
+        return []
+    df = pd.DataFrame(all_workouts)
+    df = df[df['exercise'].str.lower() == exercise_name.lower()].copy()
+    if df.empty:
+        return []
+    df['log_ts'] = pd.to_datetime(df['log_ts'], format='ISO8601', errors='coerce')
+    df = df.dropna(subset=['log_ts'])
+    if df.empty:
+        return []
+    latest_date = df['log_ts'].dt.date.max()
+    df_latest = df[df['log_ts'].dt.date == latest_date].sort_values('set_number')
+    return df_latest[['set_number', 'weight', 'reps', 'duration_sec', 'log_ts']].assign(
+        date=latest_date.strftime('%Y-%m-%d')
+    ).to_dict('records')
+
+def _build_workout_rows(plan_obj, session_state, log_ts, plan_name, bodyweight_kg,
+                        extra_exercises=None, skipped_indices=None):
     """
     Builds list of workout row dicts from session_state.
     Used by both direct save and process_pending_workout.
     Returns list of dicts ready for db.save_workout().
     """
     final_rows = []
+    
+    # Process plan exercises
     for i, ex in enumerate(plan_obj["exercises"]):
+        if skipped_indices and i in skipped_indices:
+            continue
         ex_name = ex["name"]
         ex_type = ex["type"]
         nsets = int(session_state.get(f"work_nsets_{i}", 3))
@@ -44,6 +87,40 @@ def _build_workout_rows(plan_obj, session_state, log_ts, plan_name, bodyweight_k
                     "duration_sec": d,
                     "set_number": s + 1
                 })
+                
+    # Process ad-hoc exercises
+    if extra_exercises:
+        plan_offset = len(plan_obj["exercises"])
+        for adhoc_idx, ex in enumerate(extra_exercises):
+            i = plan_offset + adhoc_idx
+            ex_name = ex["name"]
+            ex_type = ex["type"]
+            nsets = int(session_state.get(f"work_nsets_{i}", 3))
+            rpe = float(session_state.get(f"work_rpe_{i}", 7.0))
+            for s in range(nsets):
+                w = float(session_state.get(f"work_w_{i}_{s}", 0.0)) if ex_type != "Bodyweight" else 0.0
+                r = int(session_state.get(f"work_r_{i}_{s}", 0)) if ex_type != "Timed" else 0
+                d = int(session_state.get(f"work_d_{i}_{s}", 0)) if ex_type == "Timed" else 0
+                if ex_type == "Bodyweight":
+                    volume = bodyweight_kg * r
+                elif ex_type == "Timed":
+                    volume = bodyweight_kg * (d / 60)
+                else:
+                    volume = w * r
+                if r > 0 or d > 0:
+                    final_rows.append({
+                        "log_ts": log_ts,
+                        "plan_name": plan_name,
+                        "exercise": ex_name,
+                        "weight": w,
+                        "sets": nsets,
+                        "reps": r,
+                        "rpe": rpe,
+                        "volume": volume,
+                        "duration_sec": d,
+                        "set_number": s + 1
+                    })
+                    
     return final_rows
 
 def _build_workout_snapshot(plan_name, plan_obj, log_date, log_time, state):
@@ -195,6 +272,13 @@ def render_plan_builder():
 def render_workout_form():
     db = get_db()
     st.markdown('<div style="font-family:Inter, sans-serif;font-size:20px;font-weight:800;color:#F0EFE8;letter-spacing:-0.04em;margin-bottom:16px;">Training Logger</div>', unsafe_allow_html=True)
+
+    if "work_adhoc_exercises" not in st.session_state:
+        st.session_state["work_adhoc_exercises"] = []
+    if "work_skipped_indices" not in st.session_state:
+        st.session_state["work_skipped_indices"] = set()
+    
+    all_workouts_raw = fetch_workouts_cached(db)
 
     plans = fetch_plans_cached(db)
     if not plans:
@@ -384,6 +468,18 @@ def render_workout_form():
         ex_n = ex['name']
         ex_t = ex['type']
 
+        # --- Skip Logic ---
+        if i in st.session_state["work_skipped_indices"]:
+            st.markdown(f"""
+            <div style="display:flex;align-items:center;justify-content:space-between;
+            padding:8px 12px;background:rgba(255,255,255,0.03);border-radius:8px;margin-bottom:8px;">
+              <span style="font-family:Inter, sans-serif;font-size:14px;color:#666;">{ex_n} — Skipped today</span>
+            </div>""", unsafe_allow_html=True)
+            if st.button("Restore", key=f"restore_{i}"):
+                st.session_state["work_skipped_indices"].remove(i)
+                st.rerun()
+            continue
+
         type_badge_style = ""
         if ex_t == "Heavy":
             type_badge_style = "background:rgba(241,53,104,0.1);color:#F13568;border:0.5px solid rgba(241,53,104,0.2)"
@@ -392,22 +488,38 @@ def render_workout_form():
         elif ex_t == "Timed":
             type_badge_style = "background:rgba(239,159,39,0.1);color:#EF9F27;border:0.5px solid rgba(239,159,39,0.2)"
 
-        st.markdown(f"""
-        <div style="display:flex;align-items:center;justify-content:space-between;
-        padding:12px 0 6px;border-top:0.5px solid rgba(255,255,255,0.07);">
-          <span style="font-family:Inter, sans-serif;font-size:15px;font-weight:700;
-          color:#F0EFE8;letter-spacing:-0.02em;">{ex_n}</span>
-          <span style="font-size:10px;padding:3px 8px;border-radius:4px;
-          font-weight:600;letter-spacing:0.06em;text-transform:uppercase;
-          {type_badge_style}">{ex_t}</span>
-        </div>""", unsafe_allow_html=True)
+        header_col1, header_col2 = st.columns([0.8, 0.2])
+        with header_col1:
+            st.markdown(f"""
+            <div style="display:flex;align-items:center;padding:12px 0 6px;">
+              <span style="font-family:Inter, sans-serif;font-size:15px;font-weight:700;
+              color:#F0EFE8;letter-spacing:-0.02em;margin-right:10px;">{ex_n}</span>
+              <span style="font-size:10px;padding:3px 8px;border-radius:4px;
+              font-weight:600;letter-spacing:0.06em;text-transform:uppercase;
+              {type_badge_style}">{ex_t}</span>
+            </div>""", unsafe_allow_html=True)
+        with header_col2:
+            if st.button("Skip", key=f"skip_btn_{i}"):
+                st.session_state[f"work_skip_pending_{i}"] = True
+                st.rerun()
+
+        if st.session_state.get(f"work_skip_pending_{i}"):
+            st.warning(f"Skip \"{ex_n}\" today? This won't affect your template.")
+            c1, c2 = st.columns(2)
+            if c1.button("Yes, Skip", key=f"confirm_skip_{i}"):
+                st.session_state["work_skipped_indices"].add(i)
+                st.session_state.pop(f"work_skip_pending_{i}", None)
+                st.rerun()
+            if c2.button("Cancel", key=f"cancel_skip_{i}"):
+                st.session_state.pop(f"work_skip_pending_{i}", None)
+                st.rerun()
         
         # Last Session Summary Caption
-        if ex_n in last_session:
-            h_sets = last_session[ex_n]
-            h_date = h_sets[0]["date"]
+        history_sets = _get_last_session_by_exercise_name(all_workouts_raw, ex_n)
+        if history_sets:
+            h_date = history_sets[0]["date"]
             h_details = []
-            for h in h_sets:
+            for h in history_sets:
                 if ex_t == "Timed": h_details.append(f"{h['duration_sec']}s")
                 elif ex_t == "Bodyweight": h_details.append(f"{h['reps']}r")
                 else: h_details.append(f"{h['weight']}kg x {h['reps']}")
@@ -431,9 +543,8 @@ def render_workout_form():
                 curr_vol += bodyweight_kg * (d / 60)
 
         # Last session volume
-        last_sets = last_session.get(ex_n, [])
         last_vol = 0.0
-        for row in last_sets:
+        for row in history_sets:
             w = float(row.get("weight", 0.0))
             r = int(row.get("reps", 0))
             d = int(row.get("duration_sec", 0))
@@ -554,6 +665,120 @@ def render_workout_form():
         )
         st.markdown("<div style='margin-bottom: 24px;'></div>", unsafe_allow_html=True)
 
+    # --- Extra Exercises Section ---
+    adhoc_list = st.session_state.get("work_adhoc_exercises", [])
+    if adhoc_list:
+        st.markdown('<div style="font-family:Inter, sans-serif;font-size:16px;font-weight:700;color:#888880;margin:20px 0 12px;">── Extra Exercises ──────────────────</div>', unsafe_allow_html=True)
+        plan_offset = len(selected_plan['exercises'])
+        for adhoc_idx, ex in enumerate(adhoc_list):
+            i = plan_offset + adhoc_idx
+            ex_n = ex['name']
+            ex_t = ex['type']
+
+            type_badge_style = ""
+            if ex_t == "Heavy":
+                type_badge_style = "background:rgba(241,53,104,0.1);color:#F13568;border:0.5px solid rgba(241,53,104,0.2)"
+            elif ex_t == "Bodyweight":
+                type_badge_style = "background:rgba(53,200,241,0.1);color:#35C8F1;border:0.5px solid rgba(53,200,241,0.2)"
+            elif ex_t == "Timed":
+                type_badge_style = "background:rgba(239,159,39,0.1);color:#EF9F27;border:0.5px solid rgba(239,159,39,0.2)"
+
+            st.markdown(f"""
+            <div style="display:flex;align-items:center;justify-content:space-between;
+            padding:12px 0 6px;border-top:0.5px solid rgba(255,255,255,0.07);">
+              <span style="font-family:Inter, sans-serif;font-size:15px;font-weight:700;
+              color:#F0EFE8;letter-spacing:-0.02em;">{ex_n}</span>
+              <span style="font-size:10px;padding:3px 8px;border-radius:4px;
+              font-weight:600;letter-spacing:0.06em;text-transform:uppercase;
+              {type_badge_style}">{ex_t}</span>
+            </div>""", unsafe_allow_html=True)
+
+            # Last Session for Ad-Hoc
+            history_sets = _get_last_session_by_exercise_name(all_workouts_raw, ex_n)
+            if history_sets:
+                h_date = history_sets[0]["date"]
+                h_details = [f"{h['weight']}kg x {h['reps']}" if ex_t == "Heavy" else (f"{h['duration_sec']}s" if ex_t == "Timed" else f"{h['reps']}r") for h in history_sets]
+                st.markdown(f'<div style="font-size:11px;color:#444440;margin-bottom:8px;padding-left:4px;font-family:Inter, sans-serif;">Last {h_date}: {" | ".join(h_details)}</div>', unsafe_allow_html=True)
+
+            # Per-Set UI (Ad-Hoc)
+            if f"work_nsets_{i}" not in st.session_state:
+                st.session_state[f"work_nsets_{i}"] = ex.get("sets", 3)
+            
+            nsets = st.session_state[f"work_nsets_{i}"]
+            for s in range(nsets):
+                if f"work_w_{i}_{s}" not in st.session_state: st.session_state[f"work_w_{i}_{s}"] = 0.0
+                if f"work_r_{i}_{s}" not in st.session_state: st.session_state[f"work_r_{i}_{s}"] = 0
+                if f"work_d_{i}_{s}" not in st.session_state: st.session_state[f"work_d_{i}_{s}"] = 0
+                
+                is_done = st.session_state.get(f"work_done_{i}_{s}", False)
+                set_label = f'<span style="font-size:13px;font-weight:700;color:{"#C8F135" if is_done else "#888880"};">{"✓" if is_done else s+1}</span>'
+
+                row_container = st.container()
+                with row_container:
+                    if ex_t == "Heavy":
+                        cols = st.columns([0.3, 1, 1, 0.4, 0.4, 0.3])
+                        cols[0].markdown(set_label, unsafe_allow_html=True)
+                        cols[1].number_input("W", label_visibility="collapsed", min_value=0.0, step=0.5, key=f"work_w_{i}_{s}", on_change=save_workout_draft)
+                        cols[2].number_input("R", label_visibility="collapsed", min_value=0, step=1, key=f"work_r_{i}_{s}", on_change=save_workout_draft)
+                        cols[4].checkbox("Done", label_visibility="collapsed", key=f"work_done_{i}_{s}")
+                        if nsets > 1:
+                            cols[5].button("X", key=f"rm_set_adhoc_{i}_{s}", on_click=_make_remove_adhoc_set_cb(ex_t, i, s, nsets))
+                    elif ex_t == "Timed":
+                        cols = st.columns([0.3, 2, 0.4, 0.4, 0.3])
+                        cols[0].markdown(set_label, unsafe_allow_html=True)
+                        cols[1].number_input("D", label_visibility="collapsed", min_value=0, step=5, key=f"work_d_{i}_{s}", on_change=save_workout_draft)
+                        cols[3].checkbox("Done", label_visibility="collapsed", key=f"work_done_{i}_{s}")
+                        if nsets > 1:
+                            cols[4].button("X", key=f"rm_set_adhoc_{i}_{s}", on_click=_make_remove_adhoc_set_cb(ex_t, i, s, nsets))
+                    else: # Bodyweight
+                        cols = st.columns([0.3, 2, 0.4, 0.4, 0.3])
+                        cols[0].markdown(set_label, unsafe_allow_html=True)
+                        cols[1].number_input("R", label_visibility="collapsed", min_value=0, step=1, key=f"work_r_{i}_{s}", on_change=save_workout_draft)
+                        cols[3].checkbox("Done", label_visibility="collapsed", key=f"work_done_{i}_{s}")
+                        if nsets > 1:
+                            cols[4].button("X", key=f"rm_set_adhoc_{i}_{s}", on_click=_make_remove_adhoc_set_cb(ex_t, i, s, nsets))
+
+            if st.button(f"Add Set", key=f"add_set_adhoc_{i}"):
+                st.session_state[f"work_nsets_{i}"] += 1
+                st.rerun()
+
+            if f"work_rpe_{i}" not in st.session_state: st.session_state[f"work_rpe_{i}"] = 7.0
+            st.number_input("RPE", min_value=1.0, max_value=10.0, step=0.5, key=f"work_rpe_{i}", on_change=save_workout_draft)
+            if st.button(f"Remove Exercise", key=f"rm_ex_adhoc_{adhoc_idx}"):
+                st.session_state["work_adhoc_exercises"].pop(adhoc_idx)
+                st.rerun()
+            st.markdown("<div style='margin-bottom: 24px;'></div>", unsafe_allow_html=True)
+
+    # --- Add Extra Exercise Mini-Form ---
+    if st.session_state.get("work_show_adhoc_form"):
+        with st.container():
+            st.markdown('<div style="background:rgba(255,255,255,0.03);padding:16px;border-radius:12px;margin-bottom:20px;">', unsafe_allow_html=True)
+            new_name = st.text_input("Exercise Name", key="work_adhoc_name_input")
+            new_type = st.selectbox("Type", ["Heavy", "Bodyweight", "Timed"], key="work_adhoc_type_input")
+            new_sets = st.number_input("Target Sets", min_value=1, max_value=10, value=3, key="work_adhoc_sets_input")
+            
+            c1, c2 = st.columns(2)
+            if c1.button("Add", key="work_adhoc_add_confirm", type="primary"):
+                if new_name.strip():
+                    st.session_state["work_adhoc_exercises"].append({
+                        "name": new_name.strip(),
+                        "type": new_type,
+                        "sets": int(new_sets)
+                    })
+                    st.session_state["work_show_adhoc_form"] = False
+                    st.session_state.pop("work_adhoc_name_input", None)
+                    st.rerun()
+                else:
+                    st.error("Please enter a name.")
+            if c2.button("Cancel", key="work_adhoc_cancel"):
+                st.session_state["work_show_adhoc_form"] = False
+                st.rerun()
+            st.markdown('</div>', unsafe_allow_html=True)
+    else:
+        if st.button("➕ Add Extra Exercise", key="work_add_adhoc_btn", use_container_width=True):
+            st.session_state["work_show_adhoc_form"] = True
+            st.rerun()
+
     st.markdown("""<style>
     div:has(> button[key="save_workout_btn"]) > button {
       background: #C8F135 !important; color: #0D0D0F !important;
@@ -579,7 +804,15 @@ def render_workout_form():
         else:
             # No duplicate — save directly
             log_ts = get_timestamp(l_date, l_time)
-            final_rows = _build_workout_rows(selected_plan, st.session_state, log_ts, selected_plan_name, bodyweight_kg)
+            final_rows = _build_workout_rows(
+                selected_plan, 
+                st.session_state, 
+                log_ts, 
+                selected_plan_name, 
+                bodyweight_kg,
+                extra_exercises=st.session_state.get("work_adhoc_exercises", []),
+                skipped_indices=st.session_state.get("work_skipped_indices", set())
+            )
 
             if final_rows:
                 if db.save_workout(final_rows):
@@ -599,6 +832,15 @@ def render_workout_form():
                     for k in list(st.session_state.keys()):
                         if k.startswith(cleanup_prefixes):
                             st.session_state.pop(k, None)
+                    
+                    st.session_state.pop("work_adhoc_exercises", None)
+                    st.session_state["work_skipped_indices"] = set()
+                    st.session_state.pop("work_adhoc_name_input", None)
+                    st.session_state.pop("work_adhoc_type_input", None)
+                    st.session_state.pop("work_adhoc_sets_input", None)
+                    for k in [k for k in st.session_state if k.startswith("work_skip_pending_")]:
+                        st.session_state.pop(k, None)
+                        
                     st.session_state.pop("work_draft_loaded", None)
                     st.rerun()
             else:
@@ -650,7 +892,15 @@ def process_pending_workout(db, session_state):
         else:
             bodyweight_kg = float(bw)
 
-        final_rows = _build_workout_rows(selected_plan_obj, session_state, log_ts, curr_plan, bodyweight_kg)
+        final_rows = _build_workout_rows(
+            selected_plan_obj, 
+            session_state, 
+            log_ts, 
+            curr_plan, 
+            bodyweight_kg,
+            extra_exercises=session_state.get("work_adhoc_exercises", []),
+            skipped_indices=session_state.get("work_skipped_indices", set())
+        )
 
         if final_rows:
             form_key = f"draft_workout_{session_state.get('user_id', 'default')}"
@@ -671,6 +921,15 @@ def process_pending_workout(db, session_state):
                 for k in list(session_state.keys()):
                     if k.startswith(cleanup_prefixes):
                         session_state.pop(k, None)
+                
+                session_state.pop("work_adhoc_exercises", None)
+                session_state["work_skipped_indices"] = set()
+                session_state.pop("work_adhoc_name_input", None)
+                session_state.pop("work_adhoc_type_input", None)
+                session_state.pop("work_adhoc_sets_input", None)
+                for k in [k for k in session_state if k.startswith("work_skip_pending_")]:
+                    session_state.pop(k, None)
+
             session_state.pop("work_draft_loaded", None)
         else:
             session_state["_pending_warning"] = "No entries with reps/duration > 0. Nothing saved."
