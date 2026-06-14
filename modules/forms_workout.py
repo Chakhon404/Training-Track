@@ -355,6 +355,7 @@ def render_workout_form():
                             st.session_state[f"work_last_w_{_i}_{_s}"] = _row.get("weight", 0.0)
                             st.session_state[f"work_last_r_{_i}_{_s}"] = _row.get("reps", 0)
             
+        st.session_state["work_adhoc_exercises"] = draft.get("adhoc_exercises", [])
         st.session_state.work_draft_loaded = True
 
     # --- Standardized Widget Initialization ---
@@ -753,6 +754,7 @@ def render_workout_form():
             st.number_input("RPE", min_value=1.0, max_value=10.0, step=0.5, key=f"work_rpe_{i}", on_change=save_workout_draft)
             if st.button(f"Remove Exercise", key=f"rm_ex_adhoc_{adhoc_idx}"):
                 st.session_state["work_adhoc_exercises"].pop(adhoc_idx)
+                save_workout_draft()
                 st.rerun()
             st.markdown("<div style='margin-bottom: 24px;'></div>", unsafe_allow_html=True)
 
@@ -774,6 +776,7 @@ def render_workout_form():
                     })
                     st.session_state["work_show_adhoc_form"] = False
                     st.session_state.pop("work_adhoc_name_input", None)
+                    save_workout_draft()
                     st.rerun()
                 else:
                     st.error("Please enter a name.")
