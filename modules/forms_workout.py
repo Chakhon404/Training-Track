@@ -356,6 +356,15 @@ def render_workout_form():
                             st.session_state[f"work_last_r_{_i}_{_s}"] = _row.get("reps", 0)
             
         st.session_state["work_adhoc_exercises"] = draft.get("adhoc_exercises", [])
+        adhoc_ex_data = draft.get("adhoc_ex_data", {})
+        for k, v in adhoc_ex_data.items():
+            if "_w_" in k or "_rpe_" in k:
+                st.session_state[k] = float(v)
+            elif "_r_" in k or "_d_" in k or "_nsets_" in k:
+                st.session_state[k] = int(v)
+            else:
+                st.session_state[k] = v
+
         st.session_state.work_draft_loaded = True
 
     # --- Standardized Widget Initialization ---
@@ -397,13 +406,31 @@ def render_workout_form():
                     else:
                         ex_data[f"work_r_{i}_{s}"] = st.session_state.get(f"work_r_{i}_{s}", 0)
 
+        adhoc_list = st.session_state.get("work_adhoc_exercises", [])
+        plan_offset = len(selected_plan['exercises']) if selected_plan else 0
+        adhoc_ex_data = {}
+        for adhoc_idx, ex in enumerate(adhoc_list):
+            i = plan_offset + adhoc_idx
+            nsets = st.session_state.get(f"work_nsets_{i}", ex.get("sets", 3))
+            adhoc_ex_data[f"work_nsets_{i}"] = nsets
+            adhoc_ex_data[f"work_rpe_{i}"] = st.session_state.get(f"work_rpe_{i}", 7.0)
+            for s in range(nsets):
+                adhoc_ex_data[f"work_w_{i}_{s}"] = st.session_state.get(f"work_w_{i}_{s}", 0.0)
+                adhoc_ex_data[f"work_r_{i}_{s}"] = st.session_state.get(f"work_r_{i}_{s}", 0)
+                adhoc_ex_data[f"work_d_{i}_{s}"] = st.session_state.get(f"work_d_{i}_{s}", 0)
+
         data = {
             "plan_name": curr_plan,
             "exercises": ex_data,
-            "adhoc_exercises": st.session_state.get("work_adhoc_exercises", [])
+            "adhoc_exercises": adhoc_list,
+            "adhoc_ex_data": adhoc_ex_data
         }
         db.save_draft(form_key, data)
         st.session_state["_last_workout_draft_save"] = now
+
+    def force_save_workout_draft():
+        st.session_state["_last_workout_draft_save"] = 0
+        save_workout_draft()
 
     # ฟังก์ชัน Callback สำหรับปุ่ม Quick Set
     def set_work_time_to_now():
@@ -754,7 +781,7 @@ def render_workout_form():
             st.number_input("RPE", min_value=1.0, max_value=10.0, step=0.5, key=f"work_rpe_{i}", on_change=save_workout_draft)
             if st.button(f"Remove Exercise", key=f"rm_ex_adhoc_{adhoc_idx}"):
                 st.session_state["work_adhoc_exercises"].pop(adhoc_idx)
-                save_workout_draft()
+                force_save_workout_draft()
                 st.rerun()
             st.markdown("<div style='margin-bottom: 24px;'></div>", unsafe_allow_html=True)
 
@@ -776,7 +803,7 @@ def render_workout_form():
                     })
                     st.session_state["work_show_adhoc_form"] = False
                     st.session_state.pop("work_adhoc_name_input", None)
-                    save_workout_draft()
+                    force_save_workout_draft()
                     st.rerun()
                 else:
                     st.error("Please enter a name.")
