@@ -316,6 +316,7 @@ def render_workout_form():
         
         saved_plan = draft.get("plan_name")
         st.session_state.work_plan_name = saved_plan if saved_plan in plan_names else plan_names[0]
+        st.session_state["work_adhoc_exercises"] = draft.get("adhoc_exercises", [])
         
         dyn_fields = draft.get("exercises", {})
         for k, v in dyn_fields.items():
@@ -397,7 +398,8 @@ def render_workout_form():
 
         data = {
             "plan_name": curr_plan,
-            "exercises": ex_data
+            "exercises": ex_data,
+            "adhoc_exercises": st.session_state.get("work_adhoc_exercises", [])
         }
         db.save_draft(form_key, data)
         st.session_state["_last_workout_draft_save"] = now
