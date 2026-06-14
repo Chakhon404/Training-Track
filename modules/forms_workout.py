@@ -301,6 +301,11 @@ def render_workout_form():
         for k in keys_to_clear:
             st.session_state.pop(k, None)
         db.clear_draft(form_key)
+        # Immediately persist the newly selected plan name
+        db.save_draft(form_key, {
+            "plan_name": st.session_state.get("work_plan_name", ""),
+            "exercises": {}
+        })
 
     if "work_draft_loaded" not in st.session_state:
         draft = db.load_draft(form_key) or {}
