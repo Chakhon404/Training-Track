@@ -1072,37 +1072,29 @@ def render_exercise_history_card():
         df_ex = df_ex.sort_values(by=['date', 'log_ts'], ascending=[False, True])
         
         # Isolate only the single most recent distinct session date
-        all_dates = sorted(df_ex['date'].unique(), reverse=True)
-        date_options = [d.strftime('%d %b %Y') for d in all_dates]
-
-        selected_date_str = st.selectbox(
-            "Session date",
-            options=date_options,
-            key=f"hist_date_{ex_name}",
-            label_visibility="collapsed"
-        )
-
-        target_date = all_dates[date_options.index(selected_date_str)]
-        df_session = df_ex[df_ex['date'] == target_date]
-        date_str = selected_date_str
-
-        sets_html = ""
-        for idx, row in enumerate(df_session.itertuples(), start=1):
-            detail = ""
-            if str(ex_type).lower() == 'timed':
-                sec_val = int(getattr(row, 'duration_sec', 0))
-                detail = f"{sec_val}s"
-            elif str(ex_type).lower() == 'bodyweight':
-                rep_val = int(getattr(row, 'reps', 0))
-                weight_val = float(getattr(row, 'weight', 0))
-                if weight_val > 0:
-                    detail = f"+{weight_val:.1f} kg x {rep_val}"
-                else:
-                    detail = f"{rep_val} reps"
-            else:
-                weight_val = float(getattr(row, 'weight', 0))
-                rep_val = int(getattr(row, 'reps', 0))
-                detail = f"{weight_val:.1f} kg x {rep_val}"
+        recent_dates = df_ex['date'].unique()[:1]
+        
+        for target_date in recent_dates:
+            date_str = target_date.strftime('%d %b %Y')
+            df_session = df_ex[df_ex['date'] == target_date]
+            
+            sets_html = ""
+            for idx, row in enumerate(df_session.itertuples(), start=1):
+                detail = ""
+                if str(ex_type).lower() == 'timed':
+                    sec_val = int(getattr(row, 'duration_sec', 0))
+                    detail = f"{sec_val}s"
+                elif str(ex_type).lower() == 'bodyweight':
+                    rep_val = int(getattr(row, 'reps', 0))
+                    weight_val = float(getattr(row, 'weight', 0))
+                    if weight_val > 0:
+                        detail = f"+{weight_val:.1f} kg x {rep_val}"
+                    else:
+                        detail = f"{rep_val} reps"
+                else: # Default/Heavy Weight Training
+                    weight_val = float(getattr(row, 'weight', 0))
+                    rep_val = int(getattr(row, 'reps', 0))
+                    detail = f"{weight_val:.1f} kg x {rep_val}"
                 
                 sets_html += f'<div style="font-size:12px;color:#F0EFE8;padding:3px 0;">Set {idx}: {detail}</div>'
 
