@@ -455,33 +455,23 @@ def render_workout_form():
     
     # Initialize defaults if not already in session state
     for i, ex in enumerate(selected_plan['exercises']):
-        ex_name = ex['name']
-        if ex_name in last_session:
-            history_sets = last_session[ex_name]
-            # Populate nsets if not set
+        history_sets = _get_last_session_by_exercise_name(all_workouts_raw, ex['name'])
+        if history_sets:
             if f"work_nsets_{i}" not in st.session_state:
                 st.session_state[f"work_nsets_{i}"] = len(history_sets)
-            
             for s, hset in enumerate(history_sets):
-                # FORCE STRICT TYPING to prevent Streamlit React Error #185
                 prev_w = float(hset.get("weight", 0.0))
                 prev_r = int(hset.get("reps", 0))
                 prev_d = int(hset.get("duration_sec", 0))
-                
-                # Store history for PR check
                 st.session_state[f"work_last_w_{i}_{s}"] = prev_w
                 st.session_state[f"work_last_r_{i}_{s}"] = prev_r
                 st.session_state[f"work_last_d_{i}_{s}"] = prev_d
-                
-                # Populate inputs if not set
                 if f"work_w_{i}_{s}" not in st.session_state:
                     st.session_state[f"work_w_{i}_{s}"] = prev_w
                 if f"work_r_{i}_{s}" not in st.session_state:
                     st.session_state[f"work_r_{i}_{s}"] = prev_r
                 if f"work_d_{i}_{s}" not in st.session_state:
                     st.session_state[f"work_d_{i}_{s}"] = prev_d
-        
-        # Ensure nsets has a default
         if f"work_nsets_{i}" not in st.session_state:
             st.session_state[f"work_nsets_{i}"] = 3
 
