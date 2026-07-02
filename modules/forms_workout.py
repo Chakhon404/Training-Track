@@ -336,24 +336,22 @@ def render_workout_form():
                     st.session_state[k] = v
 
         if not draft:
-            _last = db.fetch_last_session_by_plan(
-                st.session_state.get("work_plan_name", plan_names[0])
-            )
             _selected = next(
                 (p for p in plans if p["name"] == st.session_state.get("work_plan_name", plan_names[0])),
                 None
             )
-            if _last and _selected:
+            if _selected:
+                _all_workouts = fetch_workouts_cached(db)
                 for _i, _ex in enumerate(_selected["exercises"]):
-                    _sets = _last.get(_ex["name"], [])
+                    _sets = _get_last_session_by_exercise_name(_all_workouts, _ex["name"])
                     if _sets:
                         st.session_state[f"work_nsets_{_i}"] = len(_sets)
                         for _s, _row in enumerate(_sets):
-                            st.session_state[f"work_w_{_i}_{_s}"]      = _row.get("weight", 0.0)
-                            st.session_state[f"work_r_{_i}_{_s}"]      = _row.get("reps", 0)
-                            st.session_state[f"work_d_{_i}_{_s}"]      = _row.get("duration_sec", 0)
-                            st.session_state[f"work_last_w_{_i}_{_s}"] = _row.get("weight", 0.0)
-                            st.session_state[f"work_last_r_{_i}_{_s}"] = _row.get("reps", 0)
+                            st.session_state[f"work_w_{_i}_{_s}"]      = float(_row.get("weight", 0.0))
+                            st.session_state[f"work_r_{_i}_{_s}"]      = int(_row.get("reps", 0))
+                            st.session_state[f"work_d_{_i}_{_s}"]      = int(_row.get("duration_sec", 0))
+                            st.session_state[f"work_last_w_{_i}_{_s}"] = float(_row.get("weight", 0.0))
+                            st.session_state[f"work_last_r_{_i}_{_s}"] = int(_row.get("reps", 0))
             
         st.session_state["work_adhoc_exercises"] = draft.get("adhoc_exercises", [])
         adhoc_ex_data = draft.get("adhoc_ex_data", {})
