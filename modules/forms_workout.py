@@ -1047,6 +1047,27 @@ def render_exercise_history_card():
         st.info("No exercises found in this plan.")
         return
 
+    # Date selector — single selectbox for all exercises
+    all_plan_dates = sorted(
+        df_all[df_all['exercise'].isin([
+            ex.get('name', '') if isinstance(ex, dict) else str(ex)
+            for ex in plan_exercises
+        ])]['date'].unique(),
+        reverse=True
+    )
+    date_options_global = [d.strftime('%d %b %Y') for d in all_plan_dates]
+
+    if not date_options_global:
+        st.info("No history found for this plan.")
+        return
+
+    selected_date_global = st.selectbox(
+        "Select Session Date",
+        options=date_options_global,
+        key=f"hist_date_global_{selected_plan_name}"
+    )
+    selected_target_date = all_plan_dates[date_options_global.index(selected_date_global)]
+
     # 3. Rendering Loop for Selected Plan
     has_history_output = False
     
@@ -1065,67 +1086,53 @@ def render_exercise_history_card():
         df_ex = df_all[df_all['exercise'].str.lower() == ex_name.lower()].copy()
         if df_ex.empty:
             continue
+
+        df_session = df_ex[df_ex['date'] == selected_target_date]
+        if df_session.empty:
+            continue
             
         has_history_output = True
+        df_session = df_session.sort_values('log_ts')
+        date_str = selected_target_date.strftime('%d %b %Y')
         
-        # Sort chronologically descending to target newest workouts first
-        df_ex = df_ex.sort_values(by=['date', 'log_ts'], ascending=[False, True])
-        
-        # Isolate only the single most recent distinct session date
-        all_dates = sorted(df_ex['date'].unique(), reverse=True)
-        date_options = [d.strftime('%d %b %Y') for d in all_dates]
-        selected_date_str = st.selectbox(
-            "Date",
-            options=date_options,
-            key=f"hist_date_{ex_name}",
-            label_visibility="collapsed"
-        )
-        target_date = all_dates[date_options.index(selected_date_str)]
-        date_str = selected_date_str
-        df_session = df_ex[df_ex['date'] == target_date]
-        
-        for target_date in [target_date]:
-            date_str = date_str
-            df_session = df_session
+        sets_html = ""
+        for idx, row in enumerate(df_session.itertuples(), start=1):
+            detail = ""
+            if str(ex_type).lower() == 'timed':
+                sec_val = int(getattr(row, 'duration_sec', 0))
+                detail = f"{sec_val}s"
+            elif str(ex_type).lower() == 'bodyweight':
+                rep_val = int(getattr(row, 'reps', 0))
+                weight_val = float(getattr(row, 'weight', 0))
+                if weight_val > 0:
+                    detail = f"+{weight_val:.1f} kg x {rep_val}"
+                else:
+                    detail = f"{rep_val} reps"
+            else:
+                weight_val = float(getattr(row, 'weight', 0))
+                rep_val = int(getattr(row, 'reps', 0))
+                detail = f"{weight_val:.1f} kg x {rep_val}"
             
-            sets_html = ""
-            for idx, row in enumerate(df_session.itertuples(), start=1):
-                detail = ""
-                if str(ex_type).lower() == 'timed':
-                    sec_val = int(getattr(row, 'duration_sec', 0))
-                    detail = f"{sec_val}s"
-                elif str(ex_type).lower() == 'bodyweight':
-                    rep_val = int(getattr(row, 'reps', 0))
-                    weight_val = float(getattr(row, 'weight', 0))
-                    if weight_val > 0:
-                        detail = f"+{weight_val:.1f} kg x {rep_val}"
-                    else:
-                        detail = f"{rep_val} reps"
-                else: # Default/Heavy Weight Training
-                    weight_val = float(getattr(row, 'weight', 0))
-                    rep_val = int(getattr(row, 'reps', 0))
-                    detail = f"{weight_val:.1f} kg x {rep_val}"
-                
-                sets_html += f'<div style="font-size:12px;color:#F0EFE8;padding:3px 0;">Set {idx}: {detail}</div>'
+            sets_html += f'<div style="font-size:12px;color:#F0EFE8;padding:3px 0;">Set {idx}: {detail}</div>'
 
-            type_badge_style = ""
-            if ex_type == "Heavy":
-                type_badge_style = "background:rgba(241,53,104,0.1);color:#F13568;border:0.5px solid rgba(241,53,104,0.2)"
-            elif ex_type == "Bodyweight":
-                type_badge_style = "background:rgba(53,200,241,0.1);color:#35C8F1;border:0.5px solid rgba(53,200,241,0.2)"
-            elif ex_type == "Timed":
-                type_badge_style = "background:rgba(239,159,39,0.1);color:#EF9F27;border:0.5px solid rgba(239,159,39,0.2)"
+        type_badge_style = ""
+        if ex_type == "Heavy":
+            type_badge_style = "background:rgba(241,53,104,0.1);color:#F13568;border:0.5px solid rgba(241,53,104,0.2)"
+        elif ex_type == "Bodyweight":
+            type_badge_style = "background:rgba(53,200,241,0.1);color:#35C8F1;border:0.5px solid rgba(53,200,241,0.2)"
+        elif ex_type == "Timed":
+            type_badge_style = "background:rgba(239,159,39,0.1);color:#EF9F27;border:0.5px solid rgba(239,159,39,0.2)"
 
-            st.markdown(f"""
-            <div style="background:#141417;border:0.5px solid rgba(255,255,255,0.07);
-            border-radius:10px;padding:12px 14px;margin-bottom:6px;">
-              <div style="display:flex;align-items:center;justify-content:space-between;margin-bottom:8px;">
-                <span style="font-family:Inter, sans-serif;font-size:14px;font-weight:700;color:#F0EFE8;">{ex_name}</span>
-                <span style="font-size:10px;padding:3px 8px;border-radius:4px;{type_badge_style}">{ex_type}</span>
-              </div>
-              <div style="font-size:11px;color:#888880;margin-bottom:6px;">Latest: {date_str}</div>
-              {sets_html}
-            </div>""", unsafe_allow_html=True)
+        st.markdown(f"""
+        <div style="background:#141417;border:0.5px solid rgba(255,255,255,0.07);
+        border-radius:10px;padding:12px 14px;margin-bottom:6px;">
+          <div style="display:flex;align-items:center;justify-content:space-between;margin-bottom:8px;">
+            <span style="font-family:Inter, sans-serif;font-size:14px;font-weight:700;color:#F0EFE8;">{ex_name}</span>
+            <span style="font-size:10px;padding:3px 8px;border-radius:4px;{type_badge_style}">{ex_type}</span>
+          </div>
+          <div style="font-size:11px;color:#888880;margin-bottom:6px;">{date_str}</div>
+          {sets_html}
+        </div>""", unsafe_allow_html=True)
         
     if has_history_output:
         st.divider()
